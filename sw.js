@@ -1,7 +1,7 @@
 // Service worker: salva l'app sul telefono per usarla offline
-const VERSION = 8;
+const VERSION = 9;
 const CACHE = 'palestra-v' + VERSION;
-const FILES = ['./', './index.html', './modello3d.js', './vendor/three-lite.js', './models/uomo.glb', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
+const FILES = ['./', './index.html', './modello3d.js', './esercizi3d.js', './vendor/three-lite.js', './models/uomo.glb', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
   // cache: 'reload' = scarica sempre la versione nuova dal server, mai una copia vecchia del browser

@@ -1,40 +1,22 @@
-// Modello 3D dell'omino (prototipo) basato su Three.js
+// Modello 3D dell'allenamento: corpo umano (CC0) con scheletro, muscoli scolpiti e attrezzi.
 import * as T from './vendor/three-lite.js';
+import { POSE3, IDS } from './esercizi3d.js';
+export { IDS };
 
 const UP = new T.Vector3(0, 1, 0);
-const SW = 17, HW = 8.5;
+const V3 = a => new T.Vector3(a[0], a[1], a[2]);
+const A3 = v => [v.x, v.y, v.z];
+const MAP = { P: 'L', M: 'R' };            // lato della posa -> lato del modello
 
-function pr(prof, t) {
-  for (let i = 1; i < prof.length; i++) if (t <= prof[i][0]) {
-    const [t0, r0] = prof[i - 1], [t1, r1] = prof[i], k = (t - t0) / ((t1 - t0) || 1);
-    return r0 + (r1 - r0) * (.5 - .5 * Math.cos(Math.PI * k));
-  }
-  return prof[prof.length - 1][1];
-}
-function lathe(prof, L, sx = 1, sz = 1) {
-  const pts = [], r0 = prof[0][1], r1 = prof[prof.length - 1][1];
-  for (let k = 0; k <= 4; k++) { const a = k / 4 * Math.PI / 2; pts.push(new T.Vector2(Math.max(.01, r0 * Math.sin(a)), -r0 * Math.cos(a) * .8)); }
-  for (let i = 1; i <= 12; i++) { const t = i / 12; pts.push(new T.Vector2(pr(prof, t), t * L)); }
-  for (let k = 1; k <= 4; k++) { const a = k / 4 * Math.PI / 2; pts.push(new T.Vector2(Math.max(.01, r1 * Math.cos(a)), L + r1 * Math.sin(a) * .8)); }
-  const g = new T.LatheGeometry(pts, 28);
-  if (sx !== 1 || sz !== 1) g.scale(sx, 1, sz);
-  g.computeVertexNormals();
-  return g;
-}
-const tmp = new T.Vector3();
-function place(m, a, b) {
-  m.position.copy(a);
-  tmp.subVectors(b, a); const L = tmp.length();
-  if (L > 1e-6) m.quaternion.setFromUnitVectors(UP, tmp.divideScalar(L));
-}
-function basis(m, y, z) {
-  const Y = y.clone().normalize(), Z = z.clone().normalize(), X = new T.Vector3().crossVectors(Y, Z).normalize();
-  Z.crossVectors(X, Y).normalize();
-  m.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(X, Y, Z));
+function lerp(a, b, t) {
+  if (typeof a === 'number') return typeof b === 'number' ? a + (b - a) * t : a;
+  if (Array.isArray(a)) return a.map((v, i) => lerp(v, b ? b[i] : v, t));
+  if (a && typeof a === 'object') { const o = {}; for (const k in a) o[k] = b && k in b ? lerp(a[k], b[k], t) : a[k]; return o; }
+  return a;
 }
 
-export function create(el, { LEN }) {
-  const R = new T.WebGLRenderer({ antialias: true });
+export function create(el, opts = {}) {
+  const R = new T.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   R.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   R.outputColorSpace = T.SRGBColorSpace;
   R.toneMapping = T.ACESFilmicToneMapping;
@@ -42,43 +24,44 @@ export function create(el, { LEN }) {
   R.shadowMap.type = T.PCFSoftShadowMap;
   R.domElement.style.cssText = 'width:100%;height:100%;display:block;touch-action:pan-y';
   el.appendChild(R.domElement);
+  const loading = document.createElement('div');
+  loading.textContent = 'Carico il modello 3D…';
+  loading.style.cssText = 'position:absolute;inset:0;display:grid;place-items:center;color:#aeb6c2;font:700 14px Manrope,system-ui,sans-serif;pointer-events:none';
+  el.appendChild(loading);
 
   const scene = new T.Scene();
   scene.background = new T.Color('#141a21');
-  scene.fog = new T.Fog('#141a21', 420, 900);
+  scene.fog = new T.Fog('#141a21', 600, 1200);
   const cam = new T.PerspectiveCamera(32, 1, 1, 3000);
-
   scene.add(new T.HemisphereLight('#e4ecff', '#262b33', .75));
   const sun = new T.DirectionalLight('#ffffff', 2.9);
-  sun.position.set(230, 260, 130); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
-  Object.assign(sun.shadow.camera, { left: -170, right: 170, top: 230, bottom: -60, near: 10, far: 800 });
-  sun.shadow.bias = -0.0006; scene.add(sun);
-  const rim = new T.DirectionalLight('#8fb0ff', 1.3); rim.position.set(-180, 140, -220); scene.add(rim);
-
-  const floor = new T.Mesh(new T.CircleGeometry(190, 64), new T.MeshStandardMaterial({ color: '#1c232c', roughness: 1 }));
+  sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -180, right: 180, top: 180, bottom: -180, near: 10, far: 900 });
+  sun.shadow.bias = -0.0005; sun.shadow.normalBias = .6; scene.add(sun); scene.add(sun.target);
+  const rim = new T.DirectionalLight('#8fb0ff', 1.3); rim.position.set(-220, 160, -240); scene.add(rim);
+  const floor = new T.Mesh(new T.CircleGeometry(260, 72), new T.MeshStandardMaterial({ color: '#1c232c', roughness: 1 }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-  const ring = new T.Mesh(new T.TorusGeometry(120, .6, 6, 90), new T.MeshBasicMaterial({ color: '#2a3340' }));
+  const ring = new T.Mesh(new T.TorusGeometry(140, .6, 6, 90), new T.MeshBasicMaterial({ color: '#2a3340' }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = .3; scene.add(ring);
 
-  const musM = null;
-  const EQ = {
-    dark: new T.MeshStandardMaterial({ color: '#363f4c', roughness: .7 }),
-    pad: new T.MeshStandardMaterial({ color: '#2a313b', roughness: .85 }),
-    metal: new T.MeshStandardMaterial({ color: '#a7b2c2', roughness: .28, metalness: .85 }),
-    plate: new T.MeshStandardMaterial({ color: '#23292f', roughness: .55, metalness: .3 }),
+  const MAT = {
+    dark: new T.MeshStandardMaterial({ color: '#39424f', roughness: .65, metalness: .2 }),
+    pad: new T.MeshStandardMaterial({ color: '#262c35', roughness: .9 }),
+    metal: new T.MeshStandardMaterial({ color: '#b3bdcc', roughness: .25, metalness: .9 }),
+    plate: new T.MeshStandardMaterial({ color: '#1f242a', roughness: .5, metalness: .35 }),
   };
-  const mk = (g, m) => { const o = new T.Mesh(g, m); o.castShadow = true; o.receiveShadow = true; return o; };
+  const mk = (g, m) => { const o = new T.Mesh(g, typeof m === 'string' ? MAT[m] : m); o.castShadow = true; o.receiveShadow = true; return o; };
 
-  // ---- modello umano (CC0, con scheletro) ----
+  // ---- modello umano ----
   const SKIN = new T.Color('#d9dde3'), SHORTS = new T.Color('#3a4250'), RED = new T.Color('#e0412a');
-  const MAP = { R: 'L', L: 'R' };          // lato dell'omino 2D -> lato del modello
   let model = null, mesh = null, colAttr = null, region = null, B = {}, restQ = {}, restLen = {}, soleLocal = {}, K = 80, lastKey = '';
   const qa = new T.Quaternion(), qb = new T.Quaternion(), va = new T.Vector3(), vb = new T.Vector3(), vc = new T.Vector3();
+  const LEN = { TH: 32.6, SH: 41.4 };
+  let readyCb = null;
   new T.GLTFLoader().load(new URL('./models/uomo.glb', import.meta.url).href, g => {
     const root = g.scene;
     root.traverse(o => { if (o.isBone) B[o.name] = o; if (o.isSkinnedMesh) mesh = o; });
     root.updateMatrixWorld(true);
-    // lunghezze a riposo (unità del modello)
     const wp = n => B[n].getWorldPosition(new T.Vector3());
     for (const s of ['L', 'R']) {
       restLen['upper_arm' + s] = wp('upper_arm' + s).distanceTo(wp('forearm' + s));
@@ -86,25 +69,23 @@ export function create(el, { LEN }) {
       restLen['thigh' + s] = wp('thigh' + s).distanceTo(wp('shin' + s));
       restLen['shin' + s] = wp('shin' + s).distanceTo(wp('foot' + s));
     }
-    K = (LEN.TH + LEN.SH) / (restLen.thighL + restLen.shinL);
+    K = 82.5;
     model = new T.Group(); model.add(root); model.rotation.y = -Math.PI / 2; model.scale.setScalar(K); scene.add(model);
     model.updateMatrixWorld(true);
     for (const n in B) restQ[n] = B[n].quaternion.clone();
     for (const s of ['L', 'R']) { const q = B['foot' + s].getWorldQuaternion(new T.Quaternion()); soleLocal[s] = new T.Vector3(0, 0, 1).applyQuaternion(q.invert()); }
-    // superficie liscia + colori per vertice
     let geo = mesh.geometry.clone(); geo.deleteAttribute('normal'); geo.deleteAttribute('uv');
     geo = T.mergeVertices(geo, 1e-4);
     geo = subdivide(geo); smooth(geo, 2); geo = subdivide(geo); smooth(geo, 1); geo = subdivide(geo); smooth(geo, 1);
     geo.computeVertexNormals(); sculpt(geo); geo.computeVertexNormals();
     mesh.geometry = geo; mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
-    const n = geo.attributes.position.count;
-    colAttr = new T.BufferAttribute(new Float32Array(n * 3), 3); geo.setAttribute('color', colAttr);
+    colAttr = new T.BufferAttribute(new Float32Array(geo.attributes.position.count * 3), 3); geo.setAttribute('color', colAttr);
     mesh.material = new T.MeshStandardMaterial({ vertexColors: true, roughness: .55, metalness: 0 });
     region = classify(geo, mesh.skeleton);
     soften(geo);
-    lastKey = '';
-  });
-
+    lastKey = ''; loading.remove();
+    if (cur) setExercise(cur);
+  }, undefined, () => { loading.textContent = 'Modello 3D non disponibile'; });
 
   // ---- suddivisione (più poligoni = corpo più liscio) ----
   function subdivide(geo) {
@@ -287,167 +268,181 @@ export function create(el, { LEN }) {
     colAttr.needsUpdate = true;
   }
 
-  // posa: orienta le ossa del modello
+
+  // ---- posa dello scheletro ----
   function setWorldQ(b, q) { b.parent.getWorldQuaternion(qa); b.quaternion.copy(qa.invert().multiply(q)); b.updateMatrixWorld(true); }
   function followQ(b) { b.parent.getWorldQuaternion(qa); return qa.clone().multiply(restQ[b.name]); }
   function aimBone(b, dir) { const q0 = followQ(b); va.set(0, 1, 0).applyQuaternion(q0); qb.setFromUnitVectors(va, vb.copy(dir).normalize()); setWorldQ(b, qb.clone().multiply(q0)); }
   function frameQ(y, z) { const Y = y.clone().normalize(), Z = z.clone().normalize(), X = new T.Vector3().crossVectors(Y, Z).normalize(); Z.crossVectors(X, Y); return new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(X, Y, Z)); }
   const restWorld = {};
-  function restWorldQ(n) { return restWorld[n] || (restWorld[n] = new T.Quaternion().setFromAxisAngle(UP, -Math.PI / 2).multiply(worldRestFromLocal(n))); }
-  function worldRestFromLocal(n) { const chain = []; let b = B[n]; while (b && b.isBone) { chain.unshift(b.name); b = b.parent; } const q = new T.Quaternion(); for (const m of chain) q.multiply(restQ[m]); return q; }
+  function restWorldQ(n) { if (!restWorld[n]) { const chain = []; let b = B[n]; while (b && b.isBone) { chain.unshift(b.name); b = b.parent; } const q = new T.Quaternion().setFromAxisAngle(UP, -Math.PI / 2); for (const m of chain) q.multiply(restQ[m]); restWorld[n] = q; } return restWorld[n]; }
   function twoBone(S, target, L1, L2, pole) {
-    const u = vc.subVectors(target, S); let d = u.length(); u.divideScalar(d || 1); d = Math.min(Math.max(d, Math.abs(L1 - L2) + .01), L1 + L2 - .01);
+    const u = vc.subVectors(target, S).clone(); let d = u.length(); u.divideScalar(d || 1); d = Math.min(Math.max(d, Math.abs(L1 - L2) + .01), L1 + L2 - .01);
     const a = (L1 * L1 - L2 * L2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
     const n = pole.clone().addScaledVector(u, -pole.dot(u)); if (n.lengthSq() < 1e-6) n.set(0, 0, 1).addScaledVector(u, -u.z); n.normalize();
-    const E = S.clone().addScaledVector(u, a).addScaledVector(n, h), H = S.clone().addScaledVector(u, d);
-    return [E, H];
+    return [S.clone().addScaledVector(u, a).addScaledVector(n, h), S.clone().addScaledVector(u, d)];
   }
-  function limb(b1, b2, root, mid, end, l1, l2, abs) {
+  function chain(b1, b2, target, pole) {
     const S = B[b1].getWorldPosition(new T.Vector3());
-    const L1 = restLen[b1] * K, L2 = restLen[b2] * K;
-    const target = abs ? abs.clone() : S.clone().addScaledVector(vb.subVectors(end, root), (L1 + L2) / (l1 + l2));
-    const u = vb.subVectors(end, root).normalize(), pole = mid.clone().sub(root); pole.addScaledVector(u, -pole.dot(u));
-    const [E, H] = twoBone(S, target, L1, L2, pole);
+    const [E, H] = twoBone(S, target, restLen[b1] * K, restLen[b2] * K, pole);
     aimBone(B[b1], E.clone().sub(S)); aimBone(B[b2], H.clone().sub(E));
     return H;
   }
-  // presa: la barra passa nel palmo e le dita la avvolgono
-  const GRIPS = {
-    'squat': (J, P, ex) => { const b = barSquat(J, ex); return { R: b.clone().add(new T.Vector3(24, 0, 0)), L: b.clone().add(new T.Vector3(-24, 0, 0)), axis: new T.Vector3(1, 0, 0) }; },
-    'lat-pulldown': (J, P) => ({ R: P.R.h.clone(), L: P.L.h.clone(), axis: new T.Vector3(1, 0, 0) }),
-  };
-  function barSquat(J, ex) { const b = [J.sh[0] - 3 * J.d[0] - 6 * J.fr[0], J.sh[1] - 3 * J.d[1] - 6 * J.fr[1]]; return new T.Vector3(0, ex.g - b[1], b[0] - (ex.vb[0] + ex.vb[2] / 2)); }
-  const CURL_G = new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), 1.05), THUMB_G = new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), .6);
+  const curlQ = a => new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), a);
+  const CURL_G = curlQ(1.05), CURL_R = curlQ(.4), THUMB_G = curlQ(.6);
+  function fingers(ms, q, tq) {
+    for (const f of ['f_index', 'f_middle', 'f_ring', 'f_pinky']) for (const k of ['01', '02', '03']) { const b = B[f + k + ms]; if (b) b.quaternion.copy(restQ[b.name]).multiply(q); }
+    for (const k of ['02', '03']) { const b = B['thumb' + k + ms]; if (b) b.quaternion.copy(restQ[b.name]).multiply(tq || q); }
+    B['hand' + ms].updateMatrixWorld(true);
+  }
   function gripHand(ms, G, axis, wrist) {
     const hb = B['hand' + ms], q0 = followQ(hb), x0 = new T.Vector3(1, 0, 0).applyQuaternion(q0);
-    const Y = G.clone().sub(wrist).normalize(), X = axis.clone().addScaledVector(Y, -axis.dot(Y)).normalize();
-    if (X.dot(x0) < 0) X.negate();
-    const Z = new T.Vector3().crossVectors(X, Y);
-    setWorldQ(hb, new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(X, Y, Z)));
-    for (const f of ['f_index', 'f_middle', 'f_ring', 'f_pinky']) for (const k of ['01', '02', '03']) { const b = B[f + k + ms]; if (b) b.quaternion.copy(restQ[b.name]).multiply(CURL_G); }
-    for (const k of ['02', '03']) { const b = B['thumb' + k + ms]; if (b) b.quaternion.copy(restQ[b.name]).multiply(THUMB_G); }
-    hb.updateMatrixWorld(true);
+    const Yh = G.clone().sub(wrist).normalize(), Xh = axis.clone().addScaledVector(Yh, -axis.dot(Yh));
+    if (Xh.lengthSq() < 1e-6) Xh.copy(x0); Xh.normalize(); if (Xh.dot(x0) < 0) Xh.negate();
+    setWorldQ(hb, new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(Xh, Yh, new T.Vector3().crossVectors(Xh, Yh))));
+    fingers(ms, CURL_G, THUMB_G);
+    return wrist.clone().addScaledVector(Yh, 6.5);
   }
-  const CURL = new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), .55);
-  function poseModel(P) {
+  const PALM = 6.5;
+  let frame = null;
+  function torsoFrame(p) {
+    const pr = (p.pitch || 0) * Math.PI / 180, yr = (p.yaw || 0) * Math.PI / 180, hr = (p.head || 0) * Math.PI / 180;
+    const qy = new T.Quaternion().setFromAxisAngle(UP, yr);
+    const d = new T.Vector3(0, Math.cos(pr), Math.sin(pr)).applyQuaternion(qy), f = new T.Vector3(0, -Math.sin(pr), Math.cos(pr)).applyQuaternion(qy);
+    const X = new T.Vector3().crossVectors(d, f).normalize();
+    const hd = d.clone().multiplyScalar(Math.cos(hr)).addScaledVector(f, Math.sin(hr)), hf = f.clone().multiplyScalar(Math.cos(hr)).addScaledVector(d, -Math.sin(hr));
+    return { d, f, X, hd, hf, hip: V3(p.hip) };
+  }
+  const local = (F, v) => F.hip.clone().addScaledVector(F.X, v[0]).addScaledVector(F.d, v[1]).addScaledVector(F.f, v[2]);
+  const localDir = (F, v) => new T.Vector3().addScaledVector(F.X, v[0]).addScaledVector(F.d, v[1]).addScaledVector(F.f, v[2]);
+  function handTarget(F, h, s) {
+    if (!h) return null;
+    if (Array.isArray(h.tf)) { const v = h.tf; return local(F, s === 'P' ? v : [-v[0], v[1], v[2]]); }
+    if (h.tf === true) return h[s] ? local(F, h[s]) : null;
+    return h[s] ? V3(h[s]) : null;
+  }
+  function poleOf(F, e, s, def) { if (!e || !e[s]) return V3(def); return e.tf ? localDir(F, e[s]) : V3(e[s]); }
+  const G = { P: null, M: null }, AX = { P: null, M: null };
+  function poseModel(p) {
+    const F = torsoFrame(p); frame = F;
     model.position.set(0, 0, 0); model.updateMatrixWorld(true);
-    const Rt = frameQ(P.d, P.f), Rh = frameQ(P.hd, P.hf);
+    const Rt = frameQ(F.d, F.f), Rh = frameQ(F.hd, F.hf);
     for (const n of ['spine', 'spine001', 'spine002', 'spine003']) setWorldQ(B[n], Rt.clone().multiply(restWorldQ(n)));
     for (const n of ['spine004', 'spine005']) setWorldQ(B[n], Rh.clone().multiply(restWorldQ(n)));
-    // porta il bacino sul punto dell'anca
     const m = B.thighL.getWorldPosition(new T.Vector3()).add(B.thighR.getWorldPosition(new T.Vector3())).multiplyScalar(.5);
-    model.position.copy(P.hip).sub(m); model.updateMatrixWorld(true);
-    const grip = GRIPS[cur && cur.id] ? GRIPS[cur.id](curJ, P, cur) : null; lastGrip = grip;
-    for (const s of ['R', 'L']) {
-      const q = P[s], ms = MAP[s];
-      if (grip) {
-        const S = B['upper_arm' + ms].getWorldPosition(new T.Vector3()), G = grip[s];
-        const wristT = G.clone().addScaledVector(G.clone().sub(S).normalize(), -6.5);
-        const H = limb('upper_arm' + ms, 'forearm' + ms, q.sh, q.e, q.h, LEN.UA, LEN.FA, wristT);
-        gripHand(ms, G, grip.axis, H);
+    model.position.copy(F.hip).sub(m); model.updateMatrixWorld(true);
+    for (const s of ['P', 'M']) {
+      const ms = MAP[s], sx = s === 'P' ? 1 : -1;
+      // braccio
+      let tgt = handTarget(F, p.hands, s), ax = p.grip && p.grip[s];
+      const pole = poleOf(F, p.epole, s, [sx * .4, -1, -.3]);
+      if (!tgt) tgt = B['upper_arm' + ms].getWorldPosition(new T.Vector3()).addScaledVector(F.d, -44).addScaledVector(F.X, sx * 4).addScaledVector(F.f, 3);
+      if (ax) {
+        const S = B['upper_arm' + ms].getWorldPosition(new T.Vector3());
+        const H = chain('upper_arm' + ms, 'forearm' + ms, tgt.clone().addScaledVector(tgt.clone().sub(S).normalize(), -PALM), pole);
+        let axis;
+        if (ax === 'sag') { const el = B['forearm' + ms].getWorldPosition(new T.Vector3()); axis = new T.Vector3().crossVectors(H.clone().sub(el).normalize(), F.X).normalize(); }
+        else axis = V3(ax).normalize();
+        G[s] = gripHand(ms, tgt, axis, H); AX[s] = axis;
       } else {
-        limb('upper_arm' + ms, 'forearm' + ms, q.sh, q.e, q.h, LEN.UA, LEN.FA);
-        setWorldQ(B['hand' + ms], followQ(B['hand' + ms]));
-        for (const f of ['f_index', 'f_middle', 'f_ring', 'f_pinky']) for (const k of ['01', '02', '03']) { const b = B[f + k + ms]; if (b) { b.quaternion.copy(restQ[b.name]).multiply(CURL); } }
+        chain('upper_arm' + ms, 'forearm' + ms, tgt, pole);
+        setWorldQ(B['hand' + ms], followQ(B['hand' + ms])); fingers(ms, CURL_R);
+        G[s] = B['hand' + ms].getWorldPosition(new T.Vector3()); AX[s] = F.X.clone();
       }
-      limb('thigh' + ms, 'shin' + ms, q.hip, q.k, q.a, LEN.TH, LEN.SH);
-      const fb = B['foot' + ms], q0 = followQ(fb), s0 = soleLocal[ms].clone().applyQuaternion(q0);
-      qb.setFromUnitVectors(s0.normalize(), vb.subVectors(q.t, q.a).normalize()); setWorldQ(fb, qb.clone().multiply(q0));
+      // gamba
+      const ft = p.feet && p.feet[s] ? V3(p.feet[s]) : F.hip.clone().addScaledVector(F.X, sx * 10).setY(5.6);
+      chain('thigh' + ms, 'shin' + ms, ft, poleOf(F, p.kpole, s, [0, 0, 1]));
+      const fb = B['foot' + ms], q0 = followQ(fb), s0 = soleLocal[ms].clone().applyQuaternion(q0).normalize();
+      const fd = V3(p.fdir && p.fdir[s] ? p.fdir[s] : [0, 0, 1]).normalize();
+      qb.setFromUnitVectors(s0, fd); setWorldQ(fb, qb.clone().multiply(q0));
     }
     model.updateMatrixWorld(true);
   }
 
-  // conversione 2D -> 3D
-  function to3D(J, ex) {
-    const X0 = ex.vb[0] + ex.vb[2] / 2, Y0 = ex.g;
-    if (J.view === 'side') {
-      const V = (p, x) => new T.Vector3(x, Y0 - p[1], p[0] - X0), D = q => new T.Vector3(0, -q[1], q[0]);
-      return {
-        hip: V(J.hip, 0), d: D(J.d), f: D(J.fr), head: V(J.head, 0), hd: D(J.hdir), hf: D(J.hfr),
-        R: { sh: V(J.sh, SW), e: V(J.ne, SW), h: V(J.nh, SW), hip: V(J.hip, HW), k: V(J.nk, HW + 2), a: V(J.na, HW + 3), t: V(J.nt, HW + 4) },
-        L: { sh: V(J.sh, -SW), e: V(J.fe, -SW), h: V(J.fh, -SW), hip: V(J.hip, -HW), k: V(J.fk, -HW - 2), a: V(J.fan, -HW - 3), t: V(J.ft, -HW - 4) },
-      };
-    }
-    const V = (p, z) => new T.Vector3(p[0] - J.cx, Y0 - p[1], z), dz = (a, b, L) => Math.sqrt(Math.max(0, L * L - (a[0] - b[0]) ** 2 - (a[1] - b[1]) ** 2));
-    const arm = (sh, A) => { const ez = dz(sh, A.e, LEN.UA); return { sh: V(sh, 0), e: V(A.e, ez), h: V(A.h, ez + dz(A.e, A.h, LEN.FA)) }; };
-    const leg = (hp, Lg, sg) => { const kz = dz(hp, Lg.k, LEN.TH), a = V(Lg.a, kz); return { hip: V(hp, 0), k: V(Lg.k, kz), a, t: a.clone().add(new T.Vector3(sg * 3, -1, 13)) }; };
-    return {
-      hip: V(J.hc, 0), d: new T.Vector3(0, 1, 0), f: new T.Vector3(0, 0, 1), head: V(J.head, 0), hd: new T.Vector3(0, 1, 0), hf: new T.Vector3(0, 0, 1),
-      R: Object.assign(arm(J.shR, J.R), leg(J.hipR, J.RL, 1)), L: Object.assign(arm(J.shL, J.L), leg(J.hipL, J.LL, -1)),
-    };
-  }
+  // ---- attrezzi ----
+  let eqG = new T.Group(); scene.add(eqG); let dyns = [];
+  const E = {
+    norm: a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; },
+    sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], mul: (a, k) => [a[0] * k, a[1] * k, a[2] * k],
+    mid: (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2],
+    add3(o) { eqG.add(o); return o; },
+    box(w, h, d, pos, m = 'dark') { const o = mk(new T.BoxGeometry(w, h, d), m); o.position.set(...pos); return E.add3(o); },
+    pad(w, h, d) { return E.add3(mk(new T.BoxGeometry(w, h, d), 'pad')); },
+    cyl(r, len, axis, pos, m = 'dark') { const o = mk(new T.CylinderGeometry(r, r, len, 28), m); if (axis === 'x') o.rotation.z = Math.PI / 2; if (axis === 'z') o.rotation.x = Math.PI / 2; o.position.set(...pos); return E.add3(o); },
+    beam(a, b, r = 2, m = 'dark') { const o = mk(new T.CylinderGeometry(r, r, 1, 14), m); E.setBeam(o, a, b); return E.add3(o); },
+    setBeam(o, a, b) { const A = V3(a), Bv = V3(b), d = Bv.clone().sub(A), L = d.length(); o.position.copy(A).add(Bv).multiplyScalar(.5); o.scale.set(1, Math.max(L, .01), 1); if (L > 1e-6) o.quaternion.setFromUnitVectors(UP, d.divideScalar(L)); },
+    place(o, pos, normal) { o.position.set(...pos); if (normal) o.quaternion.setFromUnitVectors(UP, V3(normal).normalize()); },
+    orient(o, axis, pos) { o.position.set(...pos); o.quaternion.setFromUnitVectors(new T.Vector3(1, 0, 0), V3(axis).normalize()); },
+    slab(w, len, th, c, lenDir, normal, m = 'pad') { const o = mk(new T.BoxGeometry(w, th, len), m); const Zv = V3(lenDir).normalize(), Yv = V3(normal).addScaledVector(Zv, -V3(normal).dot(Zv)).normalize(), Xv = new T.Vector3().crossVectors(Yv, Zv); o.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(Xv, Yv, Zv)); o.position.set(...c); return E.add3(o); },
+    bar(len, plateR = 0) {
+      const g = new T.Group(), b = mk(new T.CylinderGeometry(1.4, 1.4, len, 18), 'metal'); b.rotation.z = Math.PI / 2; g.add(b);
+      if (plateR) for (const sx of [1, -1]) { const pl = mk(new T.CylinderGeometry(plateR, plateR, 3.5, 30), 'plate'); pl.rotation.z = Math.PI / 2; pl.position.x = sx * (len / 2 - 6); g.add(pl); }
+      g.userData.bar = b; return E.add3(g);
+    },
+    barbell(len = 180) {
+      const g = new T.Group(), b = mk(new T.CylinderGeometry(1.4, 1.4, len, 18), 'metal'); b.rotation.z = Math.PI / 2; g.add(b);
+      for (const sx of [1, -1]) { for (const [x, r, w, m] of [[62, 18.5, 4.5, 'plate'], [67, 18.5, 4.5, 'plate'], [72, 3.2, 3, 'metal'], [56, 2.6, 6, 'metal']]) { const p = mk(new T.CylinderGeometry(r, r, w, 36), m); p.rotation.z = Math.PI / 2; p.position.x = sx * x; g.add(p); } }
+      return E.add3(g);
+    },
+    dumbbells() {
+      const one = () => { const g = new T.Group(), h = mk(new T.CylinderGeometry(1.3, 1.3, 13, 16), 'metal'); h.rotation.z = Math.PI / 2; g.add(h); for (const sx of [1, -1]) { const p = mk(new T.CylinderGeometry(7, 7, 4.5, 28), 'plate'); p.rotation.z = Math.PI / 2; p.position.x = sx * 8.5; g.add(p); } return E.add3(g); };
+      return { P: one(), M: one() };
+    },
+    hold(o, pos, axis) { E.orient(o, axis, pos); },
+    line() { const l = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(), new T.Vector3()]), new T.LineBasicMaterial({ color: '#c4ccd8' })); return E.add3(l); },
+    setLine(l, a, b) { l.geometry.setFromPoints([V3(a), V3(b)]); },
+    cableColumn(base, h, pulley) { E.box(10, h, 10, [base[0], h / 2, base[2]]); E.box(30, 3, 30, [base[0], 1.5, base[2]]); if (pulley) E.cyl(4.5, 4, 'x', pulley, 'metal'); },
+    rope(from) {
+      const l0 = E.line(), l1 = E.line(), l2 = E.line();
+      return (gp, gm) => { const knot = [(gp[0] + gm[0]) / 2, Math.max(gp[1], gm[1]) + 8, (gp[2] + gm[2]) / 2]; E.setLine(l0, from, knot); E.setLine(l1, knot, gp); E.setLine(l2, knot, gm); };
+    },
+    handles(sides, axis) { const hs = sides.map(s => [s, E.cyl(1.5, 13, 'x', [0, 0, 0], 'metal')]); E.dyn(c => { for (const [s, h] of hs) E.orient(h, axis, c.G[s]); }); },
+    machineSeat(hipY, back) { E.box(34, 6, 32, [0, hipY - 11, 2], 'pad'); E.box(6, hipY - 14, 6, [0, (hipY - 14) / 2, 2]); E.box(40, 3, 34, [0, 1.5, 4]); if (back) { E.box(32, 62, 6, [0, hipY + 30, -14], 'pad'); E.box(6, hipY + 50, 6, [0, (hipY + 50) / 2, -19]); } },
+    inclineBench(pitch, hipY) {
+      const pr = pitch * Math.PI / 180, d = [0, Math.cos(pr), Math.sin(pr)], f = [0, -Math.sin(pr), Math.cos(pr)];
+      E.box(30, 6, 30, [0, hipY - 11, 4], 'pad');
+      const c = [0, hipY + d[1] * 28 - f[1] * 11, d[2] * 28 - f[2] * 11]; E.slab(30, 70, 7, c, d, f);
+      E.box(6, hipY - 14, 6, [0, (hipY - 14) / 2, 4]); E.beam([0, 0, c[2] - 6], [c[0], c[1] - 6, c[2] + 4], 3); E.box(40, 3, 80, [0, 1.5, -10]);
+    },
+    rack() { for (const sx of [1, -1]) { E.box(5, 170, 5, [sx * 58, 85, -26]); E.box(5, 170, 5, [sx * 58, 85, 22]); E.box(5, 5, 26, [sx * 58, 108, 10]); } E.box(130, 3, 70, [0, 1.5, -2]); },
+    dyn(fn) { dyns.push(fn); },
+  };
+  function buildEquip(def) { scene.remove(eqG); eqG = new T.Group(); scene.add(eqG); dyns = []; if (def.eq) def.eq(E); }
 
-  // attrezzi (solo per il prototipo)
-  let eqG = new T.Group(); scene.add(eqG); let eqUpdate = null;
-  const box = (w, h, d, m) => mk(new T.BoxGeometry(w, h, d), m);
-  const cylX = (r, len, m) => { const o = mk(new T.CylinderGeometry(r, r, len, 24), m); o.rotation.z = Math.PI / 2; return o; };
-  function buildEquip(id, P) {
-    scene.remove(eqG); eqG = new T.Group(); scene.add(eqG); eqUpdate = null;
-    const y = P.hip.y;
-    if (id === 'squat') {
-      const bar = new T.Group(); bar.add(cylX(1.4, 210, EQ.metal));
-      for (const x of [-1, 1]) for (const [off, r, w] of [[58, 17, 4.5], [63, 17, 4.5], [69, 4, 3]]) { const p = cylX(r, w, r > 5 ? EQ.plate : EQ.metal); p.position.x = x * off; bar.add(p); }
-      eqG.add(bar);
-      eqUpdate = (J, P3, ex) => { bar.position.copy(barSquat(J, ex)); };
-    }
-    if (id === 'machine-lateral-raise' || id === 'lat-pulldown') {
-      const seat = box(44, 8, 34, EQ.pad); seat.position.set(0, y - 10, 8); eqG.add(seat);
-      const post = box(6, y - 14, 6, EQ.dark); post.position.set(0, (y - 14) / 2, 8); eqG.add(post);
-      const foot = box(40, 3, 30, EQ.dark); foot.position.set(0, 1.5, 8); eqG.add(foot);
-    }
-    if (id === 'machine-lateral-raise') {
-      const back = box(42, 64, 6, EQ.pad); back.position.set(0, y + 26, -11); eqG.add(back);
-      const col = box(8, y + 70, 8, EQ.dark); col.position.set(0, (y + 70) / 2, -22); eqG.add(col);
-      const pads = ['R', 'L'].map(s => { const o = mk(new T.CylinderGeometry(4.6, 4.6, 12, 20), EQ.pad); o.rotation.x = Math.PI / 2; eqG.add(o); return [s, o]; });
-      eqUpdate = (J, P3, ex, W) => { for (const [s, o] of pads) { const e = W('forearm', s) || P3[s].e; o.position.set(e.x + (s === 'R' ? 6 : -6), e.y + 2, e.z); } };
-    }
-    if (id === 'lat-pulldown') {
-      const col = box(10, 260, 10, EQ.dark); col.position.set(0, 130, -40); eqG.add(col);
-      const beam = box(8, 8, 60, EQ.dark); beam.position.set(0, 256, -12); eqG.add(beam);
-      const pul = mk(new T.CylinderGeometry(5, 5, 4, 20), EQ.metal); pul.rotation.z = Math.PI / 2; pul.position.set(0, 250, 14); eqG.add(pul);
-      const kp = mk(new T.CylinderGeometry(4.5, 4.5, 40, 20), EQ.pad); kp.rotation.z = Math.PI / 2; eqG.add(kp);
-      const bar = new T.Group(); bar.add(cylX(1.5, 1, EQ.metal)); eqG.add(bar);
-      const cab = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(), new T.Vector3()]), new T.LineBasicMaterial({ color: '#c4ccd8' })); eqG.add(cab);
-      eqUpdate = (J, P3, ex, W) => {
-        const r = P3.R.h, l = P3.L.h, w = (r.x - l.x) + 26;
-        bar.position.set(0, (r.y + l.y) / 2, (r.z + l.z) / 2); bar.children[0].scale.y = w;
-        cab.geometry.setFromPoints([new T.Vector3(0, bar.position.y, bar.position.z), new T.Vector3(0, 245, 14)]);
-        const k = P3.R.k; kp.position.set(0, k.y + 9, k.z - 2);
-      };
-    }
-  }
-
-  // camera e rotazione col dito
+  // ---- camera: si gira col dito ----
   let az = .9, elv = .2, dist = 420, tgt = new T.Vector3(0, 90, 0), defAz = .9, defEl = .2;
-  function camUpdate() { cam.position.set(tgt.x + dist * Math.sin(az) * Math.cos(elv), tgt.y + dist * Math.sin(elv), tgt.z + dist * Math.cos(az) * Math.cos(elv)); cam.lookAt(tgt); }
+  function camUpdate() {
+    cam.position.set(tgt.x + dist * Math.sin(az) * Math.cos(elv), tgt.y + dist * Math.sin(elv), tgt.z + dist * Math.cos(az) * Math.cos(elv)); cam.lookAt(tgt);
+    sun.position.set(tgt.x + 230, tgt.y + 260, tgt.z + 150); sun.target.position.copy(tgt);
+  }
   let drag = null;
   R.domElement.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, az, el: elv }; R.domElement.setPointerCapture(e.pointerId); });
   R.domElement.addEventListener('pointermove', e => { if (!drag) return; az = drag.az - (e.clientX - drag.x) * .012; if (e.pointerType === 'mouse') elv = Math.max(-.05, Math.min(1.1, drag.el + (e.clientY - drag.y) * .008)); camUpdate(); });
   const end = () => drag = null; R.domElement.addEventListener('pointerup', end); R.domElement.addEventListener('pointercancel', end);
-
   function resize() { const w = el.clientWidth, h = el.clientHeight; if (!w || !h) return; R.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
   new ResizeObserver(resize).observe(el);
 
-  let cur = null;
-  function setExercise(ex, J) {
-    cur = ex;
-    const P = to3D(J, ex);
-    buildEquip(ex.id, P);
-    const vb = ex.vb; tgt.set(0, ex.g - (vb[1] + vb[3] / 2), 0);
-    dist = vb[2] * 1.65;
-    defAz = az = ex.view === 'side' ? .95 : .45; defEl = elv = .16;
+  let cur = null, def = null, cache = {};
+  const W = (n, s) => A3(B[n + MAP[s]].getWorldPosition(new T.Vector3()));
+  function poseAt(t) { return lerp(def.A, Object.assign({}, def.A, def.B), t); }
+  function runDyn(p) { const c = { G: { P: A3(G.P), M: A3(G.M) }, A: { P: A3(AX.P), M: A3(AX.M) }, W, p }; for (const fn of dyns) fn(c); }
+  function setExercise(ex) {
+    cur = ex; def = POSE3[ex.id]; if (!def) return;
+    lastKey = ''; buildEquip(def);
+    if (!model) { resize(); return; }
+    const box = new T.Box3();
+    for (const t of [0, .5, 1]) { const p = poseAt(t); poseModel(p); runDyn(p); for (const n in B) if (!/f_|thumb|heel/.test(n)) box.expandByPoint(B[n].getWorldPosition(new T.Vector3())); box.expandByPoint(G.P); box.expandByPoint(G.M); }
+    box.expandByScalar(14); box.expandByPoint(box.min.clone().setY(0));
+    const c = box.getCenter(new T.Vector3()), s = box.getSize(new T.Vector3());
+    tgt.copy(c); dist = Math.max(s.y, Math.max(s.x, s.z)) * 2.0 + 10;
+    defAz = az = def.cam ? def.cam.az : .9; defEl = elv = def.cam ? def.cam.el : .18;
     camUpdate(); resize();
   }
   function reset() { az = defAz; elv = defEl; camUpdate(); }
-
-  let curJ = null, lastGrip = null;
-  const W = (n, s) => model ? B[n + MAP[s]].getWorldPosition(new T.Vector3()) : null;
-  function update(J, ex, op) {
-    if (cur !== ex) setExercise(ex, J);
-    const P = to3D(J, ex); curJ = J;
-    if (model) { poseModel(P); paint(ex.m, op); }
-    if (eqUpdate) eqUpdate(J, P, ex, W);
+  function update(ex, t, op) {
+    if (cur !== ex) setExercise(ex);
+    if (model && def) { const p = poseAt(t); poseModel(p); runDyn(p); paint(ex.m, op); }
     R.render(scene, cam);
   }
-  return { update, reset, resize };
+  return { update, reset, resize, has: id => !!POSE3[id] };
 }

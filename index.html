@@ -805,9 +805,9 @@ $('lgHist').addEventListener('click',e=>{const b=e.target.closest('button[data-d
   const id=det.ex.id;LOG[id]=(LOG[id]||[]).filter(x=>x.d!==b.dataset.del);if(!LOG[id].length)delete LOG[id];saveLog();delArm=null;listDirty=true;renderLog(det.ex,curDay)});
 let listDirty=false;
 // ===== MODELLO 3D (prototipo) =====
-const HAS3D=['squat','machine-lateral-raise','lat-pulldown'];
+const HAS3D=Object.keys(EX);
 let V3=null,V3p=null,V3err=false;
-function get3D(){if(!V3p)V3p=import('./modello3d.js').then(m=>{V3=m.create($('st3d'),{LEN});return V3}).catch(e=>{V3err=true;console.error(e);setMode('2d');$('modeBtn').style.display='none'});return V3p}
+function get3D(){if(!V3p)V3p=import('./modello3d.js').then(m=>{V3=m.create($('st3d'));return V3}).catch(e=>{V3err=true;console.error(e);setMode('2d');$('modeBtn').style.display='none'});return V3p}
 function setMode(m){if(!det)return;det.mode=m;store('mode',m);const on=m==='3d';$('xSvg').parentElement.classList.toggle('is3d',on);$('modeBtn').textContent=on?'2D':'3D';$('modeBtn').classList.toggle('on',on);$('xView').textContent=on?'Modello 3D':(det.ex.view==='front'?'Vista frontale':'Vista di lato');if(on)get3D()}
 $('modeBtn').onclick=()=>{if(det)setMode(det.mode==='3d'?'2d':'3d')};
 $('reset3d').onclick=()=>{if(V3)V3.reset()};
@@ -828,7 +828,7 @@ $('bkImp').onclick=()=>{const m=$('bkMsg');try{const o=JSON.parse($('bkTxt').val
 // offline
 function setOffl(){const o=$('offl');if(!navigator.onLine)o.innerHTML='<i></i>Offline: tutto funziona lo stesso';else o.innerHTML=''}
 addEventListener('online',setOffl);addEventListener('offline',setOffl);setOffl();
-const APP_VERSION=8;
+const APP_VERSION=9;
 $('appVer').textContent='Versione '+APP_VERSION;
 if('serviceWorker' in navigator&&!inFrame&&(location.protocol==='https:'||location.hostname==='localhost')){
   navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{
@@ -914,7 +914,7 @@ function loop(now){
   if(det){
     if(!det.paused)det.t+=dt*det.speed;
     let r;
-    if(det.mode==='3d'){r=pose(det.ex,det.t);if(V3)V3.update(r.J,det.ex,r.op)}
+    if(det.mode==='3d'){r=pose(det.ex,det.t);if(V3)V3.update(det.ex,r.ph.p,r.op)}
     else{r=render(det.ex,det.t);det.svg.innerHTML=r.svg}
     const lab={con:det.ex.cue[0],top:det.ex.cueTop||'Contrai',ecc:det.ex.cue[1],bot:det.ex.cueBot||'Allungamento'}[r.ph.k];
     const p=$('xPhase');p.querySelector('i').style.background=PCOL[r.ph.k];p.querySelector('span').textContent=lab;
