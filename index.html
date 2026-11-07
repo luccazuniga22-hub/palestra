@@ -252,7 +252,14 @@ function solveFront(P){
 // svg helpers
 const f1=n=>Math.round(n*10)/10;
 const BODY='#e8ecf1',FAR='#6c7686',PAD='#3a4454',FRAME='#2c3440',MET='#8d99ab',DARK='#1d232c',CAB='#b4bdca',ACC='#ff5a36';
-function ln(a,b,w,c,x=''){return `<line x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}" stroke="${c}" stroke-width="${w}" stroke-linecap="round"${x}/>`}
+function ln0(a,b,w,c,x=''){return `<line x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}" stroke="${c}" stroke-width="${w}" stroke-linecap="round"${x}/>`}
+// linee degli attrezzi con riflesso: imbottiture e telaio con una striscia più chiara, metallo con un filo di luce
+function ln(a,b,w,c,x=''){
+  let s=ln0(a,b,w,c,x);
+  const hl=c===PAD?'#4f5a6b':c===FRAME?'#3f4958':c===MET?'#eef2f7':null;
+  if(hl&&w>=2.5&&!x){const v=sub(b,a),L=vlen(v)||1,n=[-v[1]/L,v[0]/L],o=mul(n,(dot(n,LIGHT)>0?1:-1)*w*.22);s+=ln0(add(a,o),add(b,o),Math.max(.6,w*(c===MET?.28:.32)),hl,' opacity=".9"')}
+  return s;
+}
 function pl(p,w,c,x=''){return `<polyline points="${p.map(q=>f1(q[0])+','+f1(q[1])).join(' ')}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${x}/>`}
 function ci(p,r,fill,st,sw,x=''){return `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="${f1(r)}" fill="${fill}"${st?` stroke="${st}" stroke-width="${sw}"`:''}${x}/>`}
 function pg(p,fill,st,sw){return `<polygon points="${p.map(q=>f1(q[0])+','+f1(q[1])).join(' ')}" fill="${fill}"${st?` stroke="${st}" stroke-width="${sw}" stroke-linejoin="round"`:''}/>`}
@@ -261,7 +268,7 @@ const pulley=p=>ci(p,4.5,FRAME,MET,1.5);
 function dbEnd(p){return ci(p,6.5,'#343d4b',MET,1.6)+ci(p,2,MET)}
 function dbSide(h,e){const fd=norm(sub(h,e)),u=[-fd[1],fd[0]];return ln(at(h,u,-10),at(h,u,10),3,MET)+ln(at(h,u,-8,fd,-5),at(h,u,-8,fd,5),5,'#465163')+ln(at(h,u,8,fd,-5),at(h,u,8,fd,5),5,'#465163')}
 function dbFront(h){return ln([h[0]-10,h[1]],[h[0]+10,h[1]],3,MET)+ln([h[0]-9,h[1]-6],[h[0]-9,h[1]+6],5,'#465163')+ln([h[0]+9,h[1]-6],[h[0]+9,h[1]+6],5,'#465163')}
-function plate(p,r){return ci(p,r,'rgba(70,82,100,.28)',MET,2)+ci(p,3,MET)}
+function plate(p,r){return ci(p,r,'rgba(70,82,100,.32)',MET,2)+ci(p,r*.72,'none','#5d6878',1.2)+`<path d="M${f1(p[0]-r*.62)},${f1(p[1]-r*.35)} A${f1(r*.72)},${f1(r*.72)} 0 0 1 ${f1(p[0]+r*.2)},${f1(p[1]-r*.69)}" fill="none" stroke="#e6ebf2" stroke-width="1.1" stroke-linecap="round" opacity=".55"/>`+ci(p,3,MET)}
 function seat(J,G,x0=-16,x1=20,dy=10){const h=J.hip;return ln([h[0]+2,h[1]+dy],[h[0]+2,G],4,FRAME)+ln([h[0]-14,G-1],[h[0]+18,G-1],4,FRAME)+ln([h[0]+x0,h[1]+dy],[h[0]+x1,h[1]+dy],8,PAD)}
 function backPad(J,u0,u1,off=9){return ln(at(J.hip,J.d,u0,J.bk,off),at(J.hip,J.d,u1,J.bk,off),9,PAD)}
 function shinRoller(J,side,off=7.5){const s=sub(J.na,J.nk),a=angOf(s);const r=at(J.na,norm(s),-3,dirA(a+side),off);return ln(J.nk,r,3,FRAME)+ci(r,5.5,PAD,MET,1.4)}
@@ -464,7 +471,10 @@ function drawFront(J,ex,op){
     +`<ellipse cx="${c}" cy="${f1(hy+.6)}" rx="8" ry="9.6" fill="${SKIN}" stroke="${OUT}" stroke-width="1.2"/>`
     +`<ellipse cx="${f1(c-1.5)}" cy="${f1(hy-.5)}" rx="4.4" ry="5.6" fill="${SKINH}" opacity=".75"/>`
     +`<path d="M${f1(c-8.2)},${f1(hy-.5)} Q${f1(c-8.6)},${f1(hy-10.5)} ${c},${f1(hy-10)} Q${f1(c+8.6)},${f1(hy-10.5)} ${f1(c+8.2)},${f1(hy-.5)} Q${c},${f1(hy-6)} ${f1(c-8.2)},${f1(hy-.5)}Z" fill="${HAIR}" stroke="${OUT}" stroke-width="1"/>`
-    +defLine([[c,hy+1],[c+1,hy+4.2],[c-.6,hy+4.6]],.8);
+    +defLine([[c,hy+1],[c+1,hy+4.2],[c-.6,hy+4.6]],.8)
+    +`<ellipse cx="${f1(c-3.2)}" cy="${f1(hy+.6)}" rx="1.1" ry=".8" fill="${OUT}"/><ellipse cx="${f1(c+3.2)}" cy="${f1(hy+.6)}" rx="1.1" ry=".8" fill="${OUT}"/>`
+    +`<path d="M${f1(c-5)},${f1(hy-1.6)} Q${f1(c-3.2)},${f1(hy-2.6)} ${f1(c-1.4)},${f1(hy-1.7)} M${f1(c+1.4)},${f1(hy-1.7)} Q${f1(c+3.2)},${f1(hy-2.6)} ${f1(c+5)},${f1(hy-1.6)}" fill="none" stroke="${HAIR}" stroke-width="1" stroke-linecap="round"/>`
+    +defLine([[c-2.2,hy+6.6],[c,hy+7.1],[c+2.2,hy+6.6]],.8);
   s+=mus(J,ex,op,'t')+mus(J,ex,op,'l');
   s+=q.preArm||'';
   for(const [S,A] of [[J.shL,J.L],[J.shR,J.R]]){
@@ -491,6 +501,12 @@ function prepare(ex){
   ex.vb=[cx-size/2,cy-size/2,size,size];
   ex.tempo=ex.tempo||[1,.35,2,.45];
   ex.T=ex.tempo.reduce((a,b)=>a+b,0);
+  // traiettoria: il punto che si muove di più (mani, piedi o bacino)
+  const G=ex.view==='side'?{mano:[J=>J.nh],piede:[J=>J.na],bacino:[J=>J.hip]}:{mani:[J=>J.R.h,J=>J.L.h],piedi:[J=>J.RL.a,J=>J.LL.a],spalle:[J=>J.shR,J=>J.shL]};
+  const S=[];for(let i=0;i<=16;i++)S.push(ex.solve(lerp(ex.A,ex.B,i/16)));
+  let best=null,bl=0;
+  for(const k in G){if(ex.trace&&k!==ex.trace)continue;const tr=S.map(G[k][0]);let l=0;for(let i=1;i<tr.length;i++)l+=vlen(sub(tr[i],tr[i-1]));if(l>bl){bl=l;best=k}}
+  ex.paths=bl>12?G[best].map(f=>S.map(f)):[];
 }
 const ease=x=>.5-.5*Math.cos(Math.PI*x);
 function phaseAt(ex,time){
@@ -501,13 +517,26 @@ function phaseAt(ex,time){
   return {k:'bot',p:0,pos};
 }
 function pose(ex,time){const ph=phaseAt(ex,time);const J=ex.solve(lerp(ex.A,ex.B,ph.p));return {ph,J,op:{con:1,top:1,ecc:.72,bot:.42}[ph.k]}}
-function render(ex,time){
+function pathSvg(ex,ph){
+  if(!ex.paths||!ex.paths.length)return '';
+  const fw=ph.k==='con'||ph.k==='top',col=fw?ACC:'#4cc9f0';let s='';
+  for(const tr of ex.paths){
+    s+=`<polyline points="${tr.map(p=>f1(p[0])+','+f1(p[1])).join(' ')}" fill="none" stroke="${col}" stroke-width="1.3" stroke-dasharray="3 3" stroke-linecap="round" opacity=".55"/>`;
+    const e=fw?tr[tr.length-1]:tr[0],q=fw?tr[tr.length-3]:tr[2],d=norm(sub(e,q)),n=[-d[1],d[0]],tip=at(e,d,3);
+    s+=`<path d="M${f1(tip[0])},${f1(tip[1])} L${PTS([at(e,d,-3.5,n,3.2)])} L${PTS([at(e,d,-3.5,n,-3.2)])}Z" fill="${col}" opacity=".9"/>`;
+  }
+  return s;
+}
+function render(ex,time,detail){
   const ph=phaseAt(ex,time);
   const P=lerp(ex.A,ex.B,ph.p);const J=ex.solve(P);
   const op={con:1,top:1,ecc:.72,bot:.42}[ph.k];
   const [vx,vy,vw]=ex.vb;
-  const floor=`<rect x="${f1(vx)}" y="${f1(ex.g)}" width="${f1(vw)}" height="${f1(vy+vw-ex.g+2)}" fill="#11151b"/>`+ln([vx,ex.g],[vx+vw,ex.g],1.5,'#2e3642');
-  return {svg:floor+ex.draw(J,ex,op),ph};
+  const floor=`<defs><linearGradient id="flg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#181e26"/><stop offset="1" stop-color="#0b0e12"/></linearGradient><radialGradient id="shg"><stop offset="0" stop-color="#000" stop-opacity=".8"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs>`
+    +`<rect x="${f1(vx)}" y="${f1(ex.g)}" width="${f1(vw)}" height="${f1(vy+vw-ex.g+2)}" fill="url(#flg)"/>`+ln0([vx,ex.g],[vx+vw,ex.g],1.5,'#2e3642');
+  const jp=jointPts(J),xs=jp.map(p=>p[0]),x0=Math.min(...xs),x1=Math.max(...xs),lowY=Math.max(...jp.map(p=>p[1])),h=Math.max(0,ex.g-lowY);
+  const shadow=`<ellipse cx="${f1((x0+x1)/2)}" cy="${f1(ex.g+1)}" rx="${f1((x1-x0)/2+12)}" ry="${f1(5.5)}" fill="url(#shg)" opacity="${f1(Math.max(.35,1-h/60)*100)/100}"/>`;
+  return {svg:floor+shadow+ex.draw(J,ex,op)+(detail?pathSvg(ex,ph):''),ph};
 }
 
 // ===EXERCISES===
@@ -616,7 +645,7 @@ const EX={
  steps:["Espira e arrotola il busto verso il bacino.","Pensa a portare le costole verso l'ombelico.","Torna su lento senza perdere tensione negli addominali."],
  err:["Tirare con le braccia.","Usare il peso del corpo per far scendere il carico."]},
 
-'pull-up':{name:'Pull ups',it:'Trazioni alla sbarra',view:'front',g:192,m:['lats','biceps'],
+'pull-up':{name:'Pull ups',it:'Trazioni alla sbarra',view:'front',g:192,trace:'spalle',m:['lats','biceps'],
  A:{sc:[100,62],hc:[100,112],sym:{e:[128,36],h:[138,10]},lsym:{k:[106,150],a:[104,186]}},B:{sc:[100,18],hc:[100,68],sym:{e:[138,40],h:[138,10]},lsym:{k:[106,106],a:[104,142]}},
  equip(J,G){return {back:ln([26,10],[26,G],5,FRAME)+ln([174,10],[174,G],5,FRAME)+ln([20,10],[180,10],5,MET)}},
  cue:['Tira su','Scendi lento'],
@@ -856,7 +885,7 @@ $('bkImp').onclick=()=>{const m=$('bkMsg');try{const o=JSON.parse($('bkTxt').val
 // offline
 function setOffl(){const o=$('offl');if(!navigator.onLine)o.innerHTML='<i></i>Offline: tutto funziona lo stesso';else o.innerHTML=''}
 addEventListener('online',setOffl);addEventListener('offline',setOffl);setOffl();
-const APP_VERSION=11;
+const APP_VERSION=12;
 $('appVer').textContent='Versione '+APP_VERSION;
 if('serviceWorker' in navigator&&!inFrame&&(location.protocol==='https:'||location.hostname==='localhost')){
   navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{
@@ -943,7 +972,7 @@ function loop(now){
     if(!det.paused)det.t+=dt*det.speed;
     let r;
     if(det.mode==='3d'){r=pose(det.ex,det.t);if(V3)V3.update(det.ex,r.ph.p,r.op)}
-    else{r=render(det.ex,det.t);det.svg.innerHTML=r.svg}
+    else{r=render(det.ex,det.t,true);det.svg.innerHTML=r.svg}
     const lab={con:det.ex.cue[0],top:det.ex.cueTop||'Contrai',ecc:det.ex.cue[1],bot:det.ex.cueBot||'Allungamento'}[r.ph.k];
     const p=$('xPhase');p.querySelector('i').style.background=PCOL[r.ph.k];p.querySelector('span').textContent=lab;
     const ph=$('ph');if(ph)ph.style.left=`calc(${(r.ph.pos*100).toFixed(2)}% - 1.5px)`;
