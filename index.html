@@ -415,7 +415,9 @@ function drawFront(J,ex,op){
   const c=J.cx,y=J.sc[1],H=J.hc[1]-y,M=(x,yy)=>[c+x,y+yy];
   let s=q.back||'';
   for(const [h,L,sg] of [[J.hipL,J.LL,-1],[J.hipR,J.RL,1]]){
-    s+=shaded(L.a,[L.a[0]+sg*3,L.a[1]+5],PRO.foot)+shaded(L.k,L.a,PRO.shin)+shaded(h,L.k,PRO.thigh);
+    const seated=vlen(sub(L.k,h))<20;
+    s+=shaded(L.a,[L.a[0]+sg*3,L.a[1]+5],PRO.foot)+shaded(L.k,L.a,PRO.shin)+(seated?shaded(h,L.k,[[0,9],[1,8.6]]):shaded(h,L.k,PRO.thigh));
+    if(seated){s+=`<ellipse cx="${f1(L.k[0])}" cy="${f1(L.k[1]+1)}" rx="6" ry="5.2" fill="${SKINH}" opacity=".55"/>`+defLine([at(L.k,[-4.5,2.5]),at(L.k,[0,5.5]),at(L.k,[4.5,2.5])],.8);continue}
     const T=frameOf(h,L.k),S=frameOf(L.k,L.a);
     s+=defLine([at(h,T.u,T.L*.25,T.n,-sg*1.5),at(h,T.u,T.L*.7,T.n,-sg*2.6),at(h,T.u,T.L*.95,T.n,-sg*.5)],.8)+defLine([at(L.k,S.n,-3,S.u,-1),at(L.k,S.u,1.6),at(L.k,S.n,3,S.u,-1)],.7);
   }
@@ -488,7 +490,7 @@ const EX={
  err:["Gomiti aperti a 90° dal busto: stressano la spalla.","Staccare il sedere dalla panca o inarcarsi troppo."]},
 
 'pec-deck':{name:'Pec deck',it:'Pec deck (croci alla macchina)',view:'front',g:190,m:['chest','shoulderFront'],
- A:{sc:[100,85],hc:[100,135],sym:{e:[148,88],h:[148,60]},lsym:{k:[114,152],a:[114,186]}},B:{sym:{e:[110,92],h:[108,62]}},
+ A:{sc:[100,85],hc:[100,135],sym:{e:[148,88],h:[148,60]},lsym:{k:[115,143],a:[116,186]}},B:{sym:{e:[110,92],h:[108,62]}},
  equip(J,G){return {back:frontBackrest(J)+frontSeat(J,G),preArm:[J.L,J.R].map(A=>ln(at(A.e,[0,3]),at(A.h,[0,-3]),11,PAD)).join('')}},
  cue:['Chiudi','Apri lento'],
  setup:"Regola il sedile in modo che le maniglie siano all'altezza del petto. Schiena sempre attaccata allo schienale.",
@@ -496,15 +498,15 @@ const EX={
  err:["Staccare la schiena dallo schienale per aiutarti.","Aprire troppo all'indietro, oltre un allungamento comodo."]},
 
 'machine-lateral-raise':{name:'Machine lateral raises',it:'Alzate laterali alla macchina',view:'front',g:190,m:['shoulderSide'],
- A:{sc:[100,85],hc:[100,135],sym:{e:[124,110],h:[127,126]},lsym:{k:[114,152],a:[114,186]}},B:{sym:{e:[145,86],h:[148,100]}},
- equip(J,G){return {back:frontBackrest(J)+frontSeat(J,G),front:[[J.L,-1],[J.R,1]].map(([A,s])=>ci(at(A.e,[s*6,-2]),5.5,PAD,MET,1.3)).join('')}},
+ A:{sc:[100,85],hc:[100,135],sym:{e:[124,110],h:[126,133]},lsym:{k:[115,143],a:[116,186]}},B:{sym:{e:[145,86],h:[147,109]}},
+ equip(J,G){return {back:frontBackrest(J)+frontSeat(J,G),preArm:[[J.L,-1],[J.R,1]].map(([A,s])=>ln(at(A.e,[s*5,-8]),at(A.e,[s*5,4]),9,PAD)).join('')}},
  cue:['Alza','Scendi lento'],
  setup:"Sedile regolato in modo che le spalle siano allineate al perno della macchina. Cuscinetti contro l'esterno delle braccia.",
  steps:["Parti con le braccia lungo i fianchi.","Porta i gomiti in fuori e in alto fino all'altezza delle spalle.","Scendi lento senza far toccare i pesi."],
  err:["Alzare le spalle verso le orecchie: lavorano i trapezi invece dei deltoidi.","Dare slancio con il busto."]},
 
 'lat-pulldown':{name:'Lat pulldown',it:'Lat machine',view:'front',g:190,m:['lats','biceps'],ext:[[100,-12]],
- A:{sc:[100,85],hc:[100,135],sym:{e:[128,58],h:[138,32]},lsym:{k:[114,152],a:[114,186]}},B:{sym:{e:[132,110],h:[136,86]}},
+ A:{sc:[100,85],hc:[100,135],sym:{e:[128,58],h:[138,32]},lsym:{k:[115,143],a:[116,186]}},B:{sym:{e:[132,110],h:[136,86]}},
  equip(J,G){const y=J.R.h[1];return {back:cable([100,-12],[100,y])+pulley([100,-12])+frontSeat(J,G),front:ln([J.L.h[0]-12,y],[J.R.h[0]+12,y],4,MET)+ln([J.cx-22,J.hc[1]+5],[J.cx+22,J.hc[1]+5],8,PAD)}},
  cue:['Tira giù','Risali lento'],
  setup:"Cosce bloccate sotto il cuscinetto. Presa un po' più larga delle spalle, petto in fuori.",
@@ -608,7 +610,7 @@ const EX={
  err:["Ruotare troppo il busto.","Tirare con il gomito alto e lontano dal corpo."]},
 
 'reverse-fly':{name:'Reverse fly machine',it:'Reverse pec deck',view:'front',g:190,m:['shoulderRear','back'],ext:[[100,30]],note:"Vista frontale: deltoidi posteriori e schiena sono dietro, per questo sono tratteggiati.",
- A:{sc:[100,85],hc:[100,135],sym:{e:[112,88],h:[104,90]},lsym:{k:[114,152],a:[114,186]}},B:{sym:{e:[146,86],h:[172,88]}},
+ A:{sc:[100,85],hc:[100,135],sym:{e:[112,88],h:[104,90]},lsym:{k:[115,143],a:[116,186]}},B:{sym:{e:[146,86],h:[172,88]}},
  equip(J,G){return {back:frontSeat(J,G)+ln([100,34],J.L.h,4,FRAME)+ln([100,34],J.R.h,4,FRAME)+ci([100,34],4.5,FRAME,MET,1.4),front:[J.L.h,J.R.h].map(h=>ln(at(h,[0,-6]),at(h,[0,6]),4,MET)).join('')}},
  cue:['Apri','Chiudi lento'],
  setup:"Seduto al contrario sulla pec deck, petto contro lo schienale, maniglie all'altezza delle spalle.",
@@ -673,7 +675,7 @@ const EX={
  err:["Piegare e distendere i gomiti: diventa una spinta.","Aprire troppo dietro."]},
 
 'shoulder-press':{name:'Shoulder press',it:'Shoulder press con manubri',view:'front',g:190,m:['shoulderFront','shoulderSide','triceps'],
- A:{sc:[100,85],hc:[100,135],sym:{e:[142,92],h:[142,64]},lsym:{k:[114,152],a:[114,186]}},B:{sym:{e:[123,58],h:[125,32]}},
+ A:{sc:[100,85],hc:[100,135],sym:{e:[142,92],h:[142,64]},lsym:{k:[115,143],a:[116,186]}},B:{sym:{e:[123,58],h:[125,32]}},
  equip(J,G){return {back:frontBackrest(J)+frontSeat(J,G),front:dbFront(J.L.h)+dbFront(J.R.h)}},
  cue:['Spingi','Scendi lento'],
  setup:"Seduto con lo schienale quasi verticale, manubri all'altezza delle orecchie.",
