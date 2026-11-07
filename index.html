@@ -248,7 +248,7 @@ const pulley=p=>ci(p,4.5,FRAME,MET,1.5);
 function dbEnd(p){return ci(p,6.5,'#343d4b',MET,1.6)+ci(p,2,MET)}
 function dbSide(h,e){const fd=norm(sub(h,e)),u=[-fd[1],fd[0]];return ln(at(h,u,-10),at(h,u,10),3,MET)+ln(at(h,u,-8,fd,-5),at(h,u,-8,fd,5),5,'#465163')+ln(at(h,u,8,fd,-5),at(h,u,8,fd,5),5,'#465163')}
 function dbFront(h){return ln([h[0]-10,h[1]],[h[0]+10,h[1]],3,MET)+ln([h[0]-9,h[1]-6],[h[0]-9,h[1]+6],5,'#465163')+ln([h[0]+9,h[1]-6],[h[0]+9,h[1]+6],5,'#465163')}
-function plate(p,r){return ci(p,r,'rgba(70,82,100,.38)',MET,2)+ci(p,3,MET)}
+function plate(p,r){return ci(p,r,'rgba(70,82,100,.28)',MET,2)+ci(p,3,MET)}
 function seat(J,G,x0=-16,x1=20,dy=10){const h=J.hip;return ln([h[0]+2,h[1]+dy],[h[0]+2,G],4,FRAME)+ln([h[0]-14,G-1],[h[0]+18,G-1],4,FRAME)+ln([h[0]+x0,h[1]+dy],[h[0]+x1,h[1]+dy],8,PAD)}
 function backPad(J,u0,u1,off=9){return ln(at(J.hip,J.d,u0,J.bk,off),at(J.hip,J.d,u1,J.bk,off),9,PAD)}
 function shinRoller(J,side,off=7.5){const s=sub(J.na,J.nk),a=angOf(s);const r=at(J.na,norm(s),-3,dirA(a+side),off);return ln(J.nk,r,3,FRAME)+ci(r,5.5,PAD,MET,1.4)}
@@ -320,32 +320,69 @@ function mus(J,ex,op,g){
   for(const k of ex.m)if(GROUP[k]===g)list=list.concat(fn(J,k));
   return musSvg(list,op);
 }
+// ---- figura umana ----
+const SKIN='#e3e7ed',SKINF='#788292',OUT='#0f1318',HAIR='#2f353e';
+function smoothClosed(pts){
+  const n=pts.length;let d=`M${f1(pts[0][0])},${f1(pts[0][1])}`;
+  for(let i=0;i<n;i++){const p0=pts[(i-1+n)%n],p1=pts[i],p2=pts[(i+1)%n],p3=pts[(i+2)%n];
+    d+=`C${f1(p1[0]+(p2[0]-p0[0])/6)},${f1(p1[1]+(p2[1]-p0[1])/6)} ${f1(p2[0]-(p3[0]-p1[0])/6)},${f1(p2[1]-(p3[1]-p1[1])/6)} ${f1(p2[0])},${f1(p2[1])}`}
+  return d+'Z';
+}
+function limbPath(a,b,prof){
+  const v=sub(b,a),L=Math.max(vlen(v),.01),u=[v[0]/L,v[1]/L],n=[-u[1],u[0]];
+  const r=t=>{for(let i=1;i<prof.length;i++)if(t<=prof[i][0]){const [t0,r0]=prof[i-1],[t1,r1]=prof[i];const k=(t-t0)/((t1-t0)||1);return r0+(r1-r0)*(.5-.5*Math.cos(Math.PI*k))}return prof[prof.length-1][1]};
+  const A=[],B=[],N=6;
+  for(let i=0;i<=N;i++){const t=i/N,p=at(a,u,L*t),rr=r(t);A.push(at(p,n,rr));B.push(at(p,n,-rr))}
+  const ra=r(0),rb=r(1),capB=[],capA=[];
+  for(const th of [45,90,135]){const c=Math.cos(th*D2R),s=Math.sin(th*D2R);capB.push(at(b,n,rb*c,u,rb*s));capA.push(at(a,n,-ra*c,u,-ra*s))}
+  return smoothClosed(A.concat(capB,B.reverse(),capA));
+}
+const PRO={thigh:[[0,8.2],[.3,8.4],[.75,6.4],[1,5.2]],shin:[[0,5.1],[.28,5.9],[.65,4.1],[1,3.2]],uarm:[[0,5.8],[.35,5.4],[.75,4.4],[1,3.8]],farm:[[0,3.9],[.25,4.3],[1,2.8]],hand:[[0,3.3],[1,2.7]],foot:[[0,3.4],[.55,3.1],[1,2.5]],neck:[[0,3.6],[1,3.4]]};
+function limbSvg(a,b,prof,fill){return `<path d="${limbPath(a,b,prof)}" fill="${fill}" stroke="${OUT}" stroke-width="1.3" stroke-linejoin="round"/>`}
+function handSvg(e,h,fill){const fd=norm(sub(h,e));return limbSvg(at(h,fd,-1),at(h,fd,4.5),PRO.hand,fill)}
+function headSide(J){
+  const c=J.head,hd=J.hdir,hf=J.hfr;
+  const el=(p,rx,ry,fill,x='')=>`<ellipse cx="${f1(p[0])}" cy="${f1(p[1])}" rx="${rx}" ry="${ry}" transform="rotate(${f1(Math.atan2(hd[1],hd[0])/D2R+90)} ${f1(p[0])} ${f1(p[1])})" fill="${fill}"${x}/>`;
+  return el(at(c,hf,-1.1,hd,1.1),9.3,10,HAIR,` stroke="${OUT}" stroke-width="1.3"`)
+    +el(at(c,hf,.9,hd,-.9),8.4,9.4,SKIN,` stroke="${OUT}" stroke-width="1.3"`)
+    +ci(at(c,hf,8.6,hd,-1),2.1,SKIN,OUT,1.1)
+    +ci(at(c,hf,5.2,hd,1.8),1.05,OUT);
+}
+function torsoSide(J){
+  const P=[[-6,-5],[-2,-9.6],[6,-8.6],[16,-6.4],[28,-7.6],[40,-9],[50,-7.6],[55.5,-3],[56,3],[51,7],[44,9.6],[36,8.6],[27,6.6],[16,7],[6,7.6],[-2,6],[-6,1]];
+  return `<path d="${smoothClosed(P.map(([u,v])=>at(J.hip,J.d,u,J.fr,v)))}" fill="${SKIN}" stroke="${OUT}" stroke-width="1.3" stroke-linejoin="round"/>`;
+}
+function legSide(hip,k,a,t,fill){const fd=norm(sub(t,a));return limbSvg(at(a,fd,-3.5),t,PRO.foot,fill)+limbSvg(k,a,PRO.shin,fill)+limbSvg(hip,k,PRO.thigh,fill)}
+function armSide(sh,e,h,fill){return limbSvg(sh,e,PRO.uarm,fill)+limbSvg(e,h,PRO.farm,fill)+handSvg(e,h,fill)}
 function drawSide(J,ex,op){
   const q=ex.equip?ex.equip(J,ex.g):{};
-  const heel=(a,t)=>at(a,norm(sub(t,a)),-3);
   let s=q.back||'';
-  s+=pl([J.hip,J.fk,J.fan],7.5,FAR)+ln(heel(J.fan,J.ft),J.ft,5.5,FAR);
-  s+=pl([J.sh,J.fe,J.fh],6.5,FAR)+ci(J.fh,3.3,FAR);
+  s+=legSide(J.hip,J.fk,J.fan,J.ft,SKINF)+armSide(J.sh,J.fe,J.fh,SKINF);
   s+=q.mid||'';
-  const nk=at(J.sh,J.hdir,LEN.N);
-  s+=ln(J.hip,J.sh,13,BODY)+ln(J.sh,nk,6,BODY)+ci(J.head,LEN.R,BODY)+ci(at(J.head,J.hfr,LEN.R-.5),2.6,BODY);
+  s+=limbSvg(at(J.sh,J.hdir,-3),at(J.sh,J.hdir,LEN.N+2),PRO.neck,SKIN)+torsoSide(J)+headSide(J);
   s+=mus(J,ex,op,'t');
-  s+=pl([J.hip,J.nk,J.na],8,BODY)+ln(heel(J.na,J.nt),J.nt,6,BODY);
+  s+=legSide(J.hip,J.nk,J.na,J.nt,SKIN);
   s+=mus(J,ex,op,'l');
   s+=q.preArm||'';
-  s+=pl([J.sh,J.ne,J.nh],7,BODY)+ci(J.nh,3.6,BODY);
+  s+=armSide(J.sh,J.ne,J.nh,SKIN);
   s+=mus(J,ex,op,'a');
   return s+(q.front||'');
 }
 function drawFront(J,ex,op){
   const q=ex.equip?ex.equip(J,ex.g):{};
+  const c=J.cx,y=J.sc[1],H=J.hc[1]-y;
   let s=q.back||'';
-  for(const [h,L,sg] of [[J.hipL,J.LL,-1],[J.hipR,J.RL,1]])s+=pl([h,L.k,L.a],8,BODY)+ln(L.a,[L.a[0]+sg*7,L.a[1]+1.5],5.5,BODY);
-  s+=pg([J.shL,J.shR,J.hipR,J.hipL],BODY,BODY,6);
-  s+=ln(J.sc,[J.cx,J.sc[1]-8],7,BODY)+ci(J.head,LEN.R,BODY);
+  for(const [h,L,sg] of [[J.hipL,J.LL,-1],[J.hipR,J.RL,1]])s+=limbSvg(L.a,[L.a[0]+sg*3,L.a[1]+5],PRO.foot,SKIN)+limbSvg(L.k,L.a,PRO.shin,SKIN)+limbSvg(h,L.k,PRO.thigh,SKIN);
+  const R=[[7,-5],[16,-2],[21,4],[17,13],[14.5,.45*H],[12,.7*H],[13.5,.95*H],[11,H+5],[3,H+8]];
+  const pts=R.concat(R.slice().reverse().map(([x,yy])=>[-x,yy])).map(([x,yy])=>[c+x,y+yy]);
+  s+=limbSvg([c,y+2],[c,y-LEN.N-3],PRO.neck,SKIN);
+  s+=`<path d="${smoothClosed(pts)}" fill="${SKIN}" stroke="${OUT}" stroke-width="1.3" stroke-linejoin="round"/>`;
+  s+=`<path d="M${f1(c-6)},${f1(y+.75*H)} Q${c},${f1(y+.8*H)} ${f1(c+6)},${f1(y+.75*H)}" fill="none" stroke="#b9c0ca" stroke-width="1"/>`;
+  const hy=J.head[1];
+  s+=`<ellipse cx="${c}" cy="${f1(hy-1.4)}" rx="9.4" ry="10" fill="${HAIR}" stroke="${OUT}" stroke-width="1.3"/>`+ci([c-8.4,hy+.5],2,SKIN,OUT,1)+ci([c+8.4,hy+.5],2,SKIN,OUT,1)+`<ellipse cx="${c}" cy="${f1(hy+1)}" rx="8" ry="9" fill="${SKIN}" stroke="${OUT}" stroke-width="1.3"/>`+`<path d="M${f1(c-8)},${f1(hy-1.5)} Q${c},${f1(hy-9)} ${f1(c+8)},${f1(hy-1.5)} Q${c},${f1(hy-6)} ${f1(c-8)},${f1(hy-1.5)}Z" fill="${HAIR}"/>`+ci([c-3.2,hy+1],1.05,OUT)+ci([c+3.2,hy+1],1.05,OUT);
   s+=mus(J,ex,op,'t')+mus(J,ex,op,'l');
   s+=q.preArm||'';
-  for(const [S,A] of [[J.shL,J.L],[J.shR,J.R]])s+=pl([S,A.e,A.h],7,BODY)+ci(A.h,3.6,BODY);
+  for(const [S,A] of [[J.shL,J.L],[J.shR,J.R]])s+=limbSvg(S,A.e,PRO.uarm,SKIN)+limbSvg(A.e,A.h,PRO.farm,SKIN)+handSvg(A.e,A.h,SKIN);
   s+=mus(J,ex,op,'a');
   return s+(q.front||'');
 }
@@ -452,7 +489,7 @@ const EX={
 
 'squat':{name:'Squat',it:'Squat con bilanciere',view:'side',g:182,m:['quads','glutes'],start:'top',
  A:{hip:[78,138],t:40,ln:[102,178],an:{tf:[-3,-5]},ep:[-.6,1]},B:{hip:[100,103],t:8},
- equip(J,G){return {front:plate(at(J.sh,J.d,-3,J.bk,5),16)}},
+ equip(J,G){return {preArm:plate(at(J.sh,J.d,-3,J.bk,5),14)}},
  cue:['Spingi su','Scendi controllato'],
  setup:"Bilanciere sulla parte alta della schiena, piedi larghi come le spalle, punte leggermente in fuori.",
  steps:["Inspira e contrai l'addome prima di scendere.","Scendi portando il bacino indietro e le ginocchia avanti, nella direzione delle punte.","Arriva almeno a cosce parallele, poi spingi il pavimento per risalire."],
