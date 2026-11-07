@@ -94,7 +94,7 @@ export function create(el, { LEN }) {
     // superficie liscia + colori per vertice
     let geo = mesh.geometry.clone(); geo.deleteAttribute('normal'); geo.deleteAttribute('uv');
     geo = T.mergeVertices(geo, 1e-4);
-    geo = subdivide(geo); smooth(geo, 2); geo = subdivide(geo); smooth(geo, 1);
+    geo = subdivide(geo); smooth(geo, 2); geo = subdivide(geo); smooth(geo, 1); geo = subdivide(geo); smooth(geo, 1);
     geo.computeVertexNormals(); sculpt(geo); geo.computeVertexNormals();
     mesh.geometry = geo; mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
     const n = geo.attributes.position.count;
@@ -134,56 +134,103 @@ export function create(el, { LEN }) {
     const step = f => { const Q = P.slice(); for (let v = 0; v < n; v++) { const L = NB[v]; if (!L.length) continue; let x = 0, y = 0, z = 0; for (const u of L) { x += Q[u * 3]; y += Q[u * 3 + 1]; z += Q[u * 3 + 2]; } x /= L.length; y /= L.length; z /= L.length; P[v * 3] += f * (x - Q[v * 3]); P[v * 3 + 1] += f * (y - Q[v * 3 + 1]); P[v * 3 + 2] += f * (z - Q[v * 3 + 2]); } };
     for (let k = 0; k < it; k++) { step(.5); step(-.53); }
   }
-  // ---- muscoli scolpiti (posizioni a riposo, metri: x avanti, y su, z = destra del modello) ----
+  // ---- muscoli scolpiti (posizioni a riposo in metri: x avanti, y su, z = destra del modello) ----
   function sculpt(geo) {
-    const P = geo.attributes.position, N = geo.attributes.normal, n = P.count;
-    const rp = nm => { const v = B[nm].getWorldPosition(new T.Vector3()); return v.applyMatrix4(new T.Matrix4().copy(mesh.matrixWorld).invert()); };
-    const blobs = [], segs = [];
-    const blob = (c, r, amp, dir) => blobs.push({ c: new T.Vector3(...c), r: new T.Vector3(...r), amp, dir: new T.Vector3(...dir).normalize() });
-    const seg = (a, b, t0, t1, side, amp, maxR = .085, pow = 1.4) => segs.push({ a, b, t0, t1, side: new T.Vector3(...side).normalize(), amp, maxR, pow });
+    const P = geo.attributes.position, N = geo.attributes.normal, SI = geo.attributes.skinIndex, SW = geo.attributes.skinWeight, n = P.count, bones = mesh.skeleton.bones;
+    const inv = new T.Matrix4().copy(mesh.matrixWorld).invert();
+    const rp = nm => B[nm].getWorldPosition(new T.Vector3()).applyMatrix4(inv);
+    const W = u => u >= 1 ? 0 : (1 - u * u) ** 2;
+    // profilo verticale: 0 = morbido, 1 = pettorale (bordo basso netto, sale piano verso la clavicola), 2 = naso (più sporgente in basso)
+    const prof = (m, y) => { const u = (y - (m.y0 + m.y1) / 2) / ((m.y1 - m.y0) / 2); if (Math.abs(u) >= 1.15) return 0;
+      if (m.shape === 1) return u < -1 ? 0 : u < -.65 ? Math.sin((u + 1) / .35 * Math.PI / 2) : Math.max(0, 1 - ((u + .65) / 1.75) ** 2);
+      if (m.shape === 2) return u < -1 ? 0 : u < -.6 ? (u + 1) / .4 : Math.max(0, 1 - (u + .6) / 1.6 * .85);
+      return W(Math.abs(u)); };
+    const thW = (m, th) => { let dth = Math.abs(th - m.th); if (dth > 180) dth = 360 - dth; return m.shape === 1 ? (dth < m.hw * .35 ? 1 : W((dth - m.hw * .35) / (m.hw * .65))) : W(dth / m.hw); };
+    // muscoli del busto in coordinate cilindriche: altezza y e angolo th attorno all'asse del busto (0 = davanti, 90 = lato destro, 180 = dietro)
+    const TOR = [];
+    const tor = (y0, y1, th, hw, amp, sym = true, shape = 0) => { TOR.push({ y0, y1, th, hw, amp, shape }); if (sym && th) TOR.push({ y0, y1, th: -th, hw, amp, shape }); };
+    const HEAD = [];
+    const hd = (y0, y1, th, hw, amp, sym = true, shape = 0) => { HEAD.push({ y0, y1, th, hw, amp, shape }); if (sym && th) HEAD.push({ y0, y1, th: -th, hw, amp, shape }); };
+    tor(.36, .57, 30, 30, .02, true, 1);         // pettorali (piatti e larghi, bordo basso netto)
+    tor(.36, .58, 0, 5, -.007, false);           // solco dello sterno
+    for (const [y0, y1] of [[.025, .1], [.1, .18], [.18, .26], [.26, .34]]) tor(y0, y1, 11, 9, .009); // addominali (8 blocchi)
+    tor(0, .35, 0, 3.5, -.008, false);           // linea alba
+    tor(.04, .27, 42, 16, .011);                 // obliqui
+    for (const yy of [.31, .35, .39]) tor(yy - .022, yy + .022, 62, 9, .007); // dentato anteriore
+    tor(.2, .5, 112, 26, .022);                  // dorsali (forma a V)
+    tor(.57, .68, 148, 26, .018);                // trapezi alti
+    tor(.42, .58, 160, 15, .013);                // trapezio medio e romboidi
+    tor(.03, .6, 180, 5, -.008, false);          // solco della colonna
+    tor(.02, .3, 167, 9, .013);                  // lombari
+    tor(-.17, .04, 152, 26, .026);               // glutei
+    tor(-.16, -.02, 180, 4, -.01, false);        // solco tra i glutei
+    // viso
+    hd(.775, .855, 0, 8, .017, false, 2);        // naso (punta in basso)
+    hd(.856, .878, 22, 22, .007);                // arcate sopracciliari
+    hd(.825, .855, 25, 12, -.009);               // orbite degli occhi
+    hd(.795, .835, 48, 18, .006);                // zigomi
+    hd(.765, .773, 0, 16, -.004, false);         // linea della bocca
+    hd(.773, .79, 0, 13, .004, false);           // labbra
+    hd(.733, .765, 0, 18, .007, false);          // mento
+    hd(.738, .785, 68, 16, .006);                // angolo della mandibola
+    hd(.795, .865, 90, 8, .013);                 // orecchie
+    hd(.645, .725, 32, 14, .006);                // muscoli del collo
+    // muscoli degli arti lungo un segmento osso: lato (avanti/esterno/dietro/interno), da t0 a t1
+    const LIM = [];
     for (const sg of [-1, 1]) {
-      const S = sg < 0 ? 'L' : 'R', sh = rp('upper_arm' + S), el = rp('forearm' + S), wr = rp('hand' + S), hp = rp('thigh' + S), kn = rp('shin' + S), an = rp('foot' + S);
-      blob([.085, .465, sg * .085], [.075, .07, .095], .02, [1, -.1, sg * .25]);          // pettorali
-      blob([.06, .41, sg * .1], [.05, .025, .07], -.006, [1, -.4, 0]);                      // bordo basso pettorale
-      blob([sh.x, sh.y + .01, sh.z + sg * .015], [.085, .08, .07], .018, [0, .3, sg]);      // deltoide laterale
-      blob([sh.x + .05, sh.y - .01, sh.z], [.05, .07, .05], .012, [1, 0, sg * .3]);        // deltoide anteriore
-      blob([sh.x - .05, sh.y - .01, sh.z], [.05, .07, .05], .011, [-1, 0, sg * .3]);       // deltoide posteriore
-      blob([-.03, .64, sg * .085], [.06, .05, .08], .016, [-.3, 1, sg * .2]);              // trapezi
-      blob([-.03, .36, sg * .125], [.07, .13, .05], .016, [-.3, 0, sg]);                   // dorsali (forma a V)
-      blob([-.085, .48, sg * .065], [.04, .08, .05], .009, [-1, 0, sg * .2]);              // schiena alta
-      blob([-.075, .1, sg * .03], [.03, .13, .025], .009, [-1, 0, 0]);                     // lombari
-      blob([-.085, -.05, sg * .06], [.07, .085, .07], .022, [-1, -.2, sg * .2]);           // glutei
-      for (const [yy, rr] of [[.1, .034], [.18, .034], [.26, .036]]) blob([.11, yy, sg * .036], [.04, rr, .03], .008, [1, 0, 0]); // addominali
-      blob([.08, .2, sg * .1], [.04, .12, .03], .006, [.6, 0, sg]);                         // obliqui
-      seg(sh, el, .2, .95, [1, 0, -sg * .2], .013);                                        // bicipite
-      seg(sh, el, .15, .9, [-1, 0, sg * .3], .012);                                        // tricipite
-      seg(el, wr, .05, .65, [.2, 0, sg], .009, .07);                                       // avambraccio esterno
-      seg(el, wr, .05, .6, [.3, 0, -sg], .008, .07);                                       // avambraccio interno
-      seg(hp, kn, .12, .92, [1, 0, sg * .15], .022, .11);                                  // quadricipite
-      seg(hp, kn, .65, .97, [.6, 0, -sg], .014, .11, 2);                                   // vasto mediale (goccia sopra il ginocchio)
-      seg(hp, kn, .1, .85, [-1, 0, 0], .014, .11);                                         // femorali
-      seg(kn, an, .08, .5, [-1, 0, -sg * .2], .022, .09, 1.2);                             // polpacci
-      seg(kn, an, .05, .45, [.3, 0, sg], .006, .09);                                       // tibiale
+      const S = sg < 0 ? 'L' : 'R', sh = rp('upper_arm' + S), el = rp('forearm' + S), wr = rp('hand' + S), hp = rp('thigh' + S), kn = rp('shin' + S), an = rp('foot' + S), top = sh.clone().add(new T.Vector3(0, .05, sg * .01));
+      const out = [0, 0, sg], fw = [1, 0, 0], bw = [-1, 0, 0], inn = [0, 0, -sg];
+      const lim = (a, b, t0, t1, side, amp, maxR = .09, pk = 1) => LIM.push({ a, b, t0, t1, side: new T.Vector3(...side).normalize(), amp, maxR, pk });
+      lim(top, el, 0, .42, out, .02, .1);                       // deltoide laterale
+      lim(top, el, 0, .4, [1, 0, sg * .4], .016, .1);           // deltoide anteriore
+      lim(top, el, 0, .4, [-1, 0, sg * .4], .015, .1);          // deltoide posteriore
+      lim(sh, el, .28, .92, fw, .019, .085, .9);                // bicipite
+      lim(sh, el, .45, .95, [.3, 0, sg], -.004, .085);          // solco bicipite-tricipite
+      lim(sh, el, .2, .9, bw, .016, .085);                      // tricipite capo lungo
+      lim(sh, el, .25, .75, [-.6, 0, sg], .01, .085);           // tricipite capo laterale
+      lim(el, wr, 0, .5, [.5, 0, sg], .014, .07, .8);           // brachioradiale
+      lim(el, wr, 0, .55, [.2, 0, -sg], .011, .07, .8);         // flessori
+      lim(hp, kn, .1, .88, [1, 0, sg * .1], .017, .12);         // retto femorale
+      lim(hp, kn, .2, .9, [.55, 0, sg], .02, .12);              // vasto laterale
+      lim(hp, kn, .62, .95, [.55, 0, -sg], .013, .12, 1.8);     // vasto mediale (goccia)
+      lim(hp, kn, .3, .85, [.8, 0, sg * .55], -.005, .12);      // solco tra i quadricipiti
+      lim(hp, kn, .1, .88, bw, .016, .12);                      // femorali
+      lim(hp, kn, .05, .7, inn, .011, .12);                     // adduttori
+      lim(kn, an, .07, .46, [-1, 0, -sg * .45], .024, .09, .8); // gastrocnemio mediale
+      lim(kn, an, .07, .4, [-1, 0, sg * .45], .017, .09, .8);   // gastrocnemio laterale
+      lim(kn, an, .1, .38, bw, -.004, .09);                     // solco tra i due capi
+      lim(kn, an, .4, .72, bw, .008, .09);                      // soleo
+      lim(kn, an, .05, .5, [.4, 0, sg], .008, .09);             // tibiale
     }
     const p = new T.Vector3(), nn = new T.Vector3(), d = new T.Vector3(), u = new T.Vector3(), q = new T.Vector3();
     for (let i = 0; i < n; i++) {
+      let best = 0, bw = -1; for (let j = 0; j < 4; j++) { const w = SW.getComponent(i, j); if (w > bw) { bw = w; best = SI.getComponent(i, j); } }
+      const bn = bones[best].name; if (/hand|f_|thumb|toe|foot|heel/.test(bn)) continue;
       p.fromBufferAttribute(P, i); nn.fromBufferAttribute(N, i); let disp = 0;
-      for (const b of blobs) {
-        d.subVectors(p, b.c); const r2 = (d.x / b.r.x) ** 2 + (d.y / b.r.y) ** 2 + (d.z / b.r.z) ** 2; if (r2 >= 1) continue;
-        const f = (1 - r2) ** 2, facing = Math.max(0, nn.dot(b.dir)); disp += b.amp * f * Math.sqrt(facing);
+      if (/spine00[45]/.test(bn)) {
+        const th = Math.atan2(p.z, p.x - .005) * 180 / Math.PI;
+        for (const m of HEAD) { if (p.y < m.y0 - .01 || p.y > m.y1 + .01) continue; disp += m.amp * prof(m, p.y) * thW(m, th); }
+        if (disp) P.setXYZ(i, p.x + nn.x * disp, p.y + nn.y * disp, p.z + nn.z * disp);
+        continue;
       }
-      for (const m of segs) {
+      if (/spine|pelvis/.test(bn) || (/thigh/.test(bn) && p.y > -.2 && p.x < 0)) {
+        const th = Math.atan2(p.z, p.x - .025) * 180 / Math.PI;
+        for (const m of TOR) {
+          if (p.y < m.y0 - .02 || p.y > m.y1 + .02) continue;
+          disp += m.amp * prof(m, p.y) * thW(m, th);
+        }
+      }
+      if (!/spine|pelvis/.test(bn)) for (const m of LIM) {
         u.subVectors(m.b, m.a); const L = u.length(); u.divideScalar(L);
         const t = q.subVectors(p, m.a).dot(u) / L; if (t < m.t0 || t > m.t1) continue;
         d.copy(q).addScaledVector(u, -t * L); const rad = d.length(); if (rad > m.maxR) continue; d.divideScalar(rad || 1);
-        const sc = (t - m.t0) / (m.t1 - m.t0), along = Math.pow(Math.sin(Math.PI * Math.pow(sc, m.pow)), .8), side = Math.max(0, d.dot(m.side));
-        disp += m.amp * along * side * side;
+        const sc = (t - m.t0) / (m.t1 - m.t0), along = Math.pow(Math.sin(Math.PI * Math.pow(sc, m.pk)), .7), side = Math.max(0, d.dot(m.side));
+        disp += m.amp * along * Math.pow(side, 1.6);
       }
-      disp *= 1.5; if (disp) P.setXYZ(i, p.x + nn.x * disp, p.y + nn.y * disp, p.z + nn.z * disp);
+      if (disp) P.setXYZ(i, p.x + nn.x * disp, p.y + nn.y * disp, p.z + nn.z * disp);
     }
     P.needsUpdate = true;
   }
-
   // zone dei muscoli sul modello a riposo (x avanti, y su, z = destra del modello)
   function classify(geo, sk) {
     const P = geo.attributes.position, N = geo.attributes.normal, SI = geo.attributes.skinIndex, SW = geo.attributes.skinWeight, out = [];

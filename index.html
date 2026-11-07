@@ -136,6 +136,8 @@ header p{margin:6px 0 0;color:var(--muted);font-size:14px}
 .bkbox.show{display:block}
 .bkbox textarea{width:100%;height:110px;margin-top:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:12px ui-monospace,Menlo,monospace;padding:8px}
 .bkbox .lgbtns{flex-wrap:wrap}
+.upd{position:fixed;left:50%;bottom:calc(var(--sab) + 18px);transform:translate(-50%,150%);z-index:50;background:var(--acc);color:#fff;font-weight:800;font-size:14px;padding:13px 18px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.5);transition:transform .3s;white-space:nowrap}
+.upd.show{transform:translate(-50%,0)}
 .offl{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--muted);margin-top:8px}
 .offl i{width:7px;height:7px;border-radius:50%;background:#7ee2a8;display:inline-block}
 </style>
@@ -160,9 +162,10 @@ header p{margin:6px 0 0;color:var(--muted);font-size:14px}
       <div class="msg" id="bkMsg"></div>
     </div>
   </div>
-  <div class="foot">Animazioni schematiche: l'omino mostra traiettoria e ritmo.<br>In rosso i muscoli che lavorano. Tratteggiato = muscolo sul lato non visibile.</div>
+  <div class="foot"><b id="appVer"></b><br>Animazioni schematiche: l'omino mostra traiettoria e ritmo.<br>In rosso i muscoli che lavorano. Tratteggiato = muscolo sul lato non visibile.</div>
 </div>
 
+<button class="upd" id="updToast"></button>
 <section class="det" id="det" aria-hidden="true">
   <div class="dbar"><button class="back" id="backBtn" aria-label="Indietro">‹</button><div class="tt"><b id="xTitle"></b><span id="xEn"></span></div></div>
   <div class="dwrap">
@@ -825,7 +828,16 @@ $('bkImp').onclick=()=>{const m=$('bkMsg');try{const o=JSON.parse($('bkTxt').val
 // offline
 function setOffl(){const o=$('offl');if(!navigator.onLine)o.innerHTML='<i></i>Offline: tutto funziona lo stesso';else o.innerHTML=''}
 addEventListener('online',setOffl);addEventListener('offline',setOffl);setOffl();
-if('serviceWorker' in navigator&&!inFrame&&(location.protocol==='https:'||location.hostname==='localhost')){navigator.serviceWorker.register('sw.js').catch(()=>{})}
+const APP_VERSION=8;
+$('appVer').textContent='Versione '+APP_VERSION;
+if('serviceWorker' in navigator&&!inFrame&&(location.protocol==='https:'||location.hostname==='localhost')){
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{
+    const check=()=>{if(navigator.onLine)reg.update().catch(()=>{})};
+    check();document.addEventListener('visibilitychange',()=>{if(!document.hidden)check()});
+  }).catch(()=>{});
+  navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.type==='updated'&&e.data.version!==APP_VERSION){const t=$('updToast');t.textContent='Nuova versione pronta: tocca per aggiornare';t.classList.add('show')}});
+}
+$('updToast').onclick=()=>location.reload();
 
 const NS='http://www.w3.org/2000/svg';
 let curDay=DAYS[0],thumbs=[],det=null,fromList=false;
