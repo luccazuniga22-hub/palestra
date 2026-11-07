@@ -271,7 +271,8 @@ function frontBackrest(J){const c=J.cx;return pg([[c-21,J.sc[1]-16],[c+21,J.sc[1
 // ---- figura anatomica ----
 const MUSN={chest:'Petto',shoulderFront:'Deltoidi anteriori',shoulderSide:'Deltoidi laterali',shoulderRear:'Deltoidi posteriori',back:'Schiena alta',lats:'Dorsali',biceps:'Bicipiti',triceps:'Tricipiti',forearm:'Avambracci',abs:'Addominali',lowerBack:'Lombari',glutes:'Glutei',quads:'Quadricipiti',hams:'Femorali',calves:'Polpacci'};
 const GROUP={chest:'t',back:'t',lats:'t',abs:'t',lowerBack:'t',glutes:'l',quads:'l',hams:'l',calves:'l',biceps:'a',triceps:'a',forearm:'a',shoulderFront:'a',shoulderSide:'a',shoulderRear:'a'};
-const SKIN='#c9ced6',SKINH='#f2f4f7',SKINF='#5c6572',SKINFH='#7f8895',OUT='#11151b',DEF='#8a939f',HAIR='#737a85';
+const SKIN='#e0d1c6',SKINH='#f8efe9',SKINS='#b29d90',SKINF='#8c7e75',SKINFH='#a69890',SKINFS='#6d615a',OUT='#16120f',DEF='#a3897b',HAIR='#3b312b';
+const COL={skin:[SKIN,SKINH,SKINS],far:[SKINF,SKINFH,SKINFS],shorts:['#343c48','#4b5563','#252b34'],shortsFar:['#262c35','#353d48','#1c2128']};
 const LIGHT=norm([-.55,-.83]);
 const PTS=p=>p.map(q=>f1(q[0])+','+f1(q[1]));
 function smoothClosed(pts){
@@ -286,6 +287,7 @@ function smoothOpen(pts){
     d+=`C${f1(p1[0]+(p2[0]-p0[0])/6)},${f1(p1[1]+(p2[1]-p0[1])/6)} ${f1(p2[0]-(p3[0]-p1[0])/6)},${f1(p2[1]-(p3[1]-p1[1])/6)} ${f1(p2[0])},${f1(p2[1])}`}
   return d;
 }
+const defPath=pts=>`<path d="${smoothOpen(pts)}"/>`;
 const defLine=(pts,w=.9)=>`<path d="${smoothOpen(pts)}" fill="none" stroke="${DEF}" stroke-width="${w}" stroke-linecap="round" opacity=".9"/>`;
 function profR(prof,t){for(let i=1;i<prof.length;i++)if(t<=prof[i][0]){const [t0,r0]=prof[i-1],[t1,r1]=prof[i];const k=(t-t0)/((t1-t0)||1);return r0+(r1-r0)*(.5-.5*Math.cos(Math.PI*k))}return prof[prof.length-1][1]}
 function limbPts(a,b,prof,sc=1){
@@ -296,12 +298,14 @@ function limbPts(a,b,prof,sc=1){
   for(const th of [45,90,135]){const c=Math.cos(th*D2R),s=Math.sin(th*D2R);cb.push(at(b,n,rb*c,u,rb*s));ca.push(at(a,n,-ra*c,u,-ra*s))}
   return A.concat(cb,B.reverse(),ca);
 }
-function shaded(a,b,prof,far){
-  const u=norm(sub(b,a)),n=[-u[1],u[0]],sh=mul(n,dot(LIGHT,n)*1.7);
-  return `<path d="${smoothClosed(limbPts(a,b,prof))}" fill="${far?SKINF:SKIN}" stroke="${OUT}" stroke-width="1.2" stroke-linejoin="round"/>`
-   +`<path d="${smoothClosed(limbPts(add(a,sh),add(b,sh),prof,.5))}" fill="${far?SKINFH:SKINH}" opacity=".8"/>`;
+// arto con tre toni: colore pieno, ombra dal lato opposto alla luce, luce dal lato illuminato
+function shaded(a,b,prof,far,col){
+  const C=col||(far?COL.far:COL.skin),u=norm(sub(b,a)),n=[-u[1],u[0]],k=dot(LIGHT,n),sh=mul(n,k*1.7),sd=mul(n,-k*2.1);
+  return `<path d="${smoothClosed(limbPts(a,b,prof))}" fill="${C[0]}" stroke="${OUT}" stroke-width="1.2" stroke-linejoin="round"/>`
+   +`<path d="${smoothClosed(limbPts(add(a,sd),add(b,sd),prof,.62))}" fill="${C[2]}" opacity=".55"/>`
+   +`<path d="${smoothClosed(limbPts(add(a,sh),add(b,sh),prof,.46))}" fill="${C[1]}" opacity=".85"/>`;
 }
-const PRO={thigh:[[0,8.4],[.3,8.6],[.78,6.2],[1,5.3]],shin:[[0,5.2],[.26,6.1],[.62,4.2],[1,3.2]],uarm:[[0,6.4],[.22,5.7],[.55,5.3],[1,3.9]],farm:[[0,4.1],[.22,4.6],[1,2.8]],hand:[[0,3.3],[1,2.7]],foot:[[0,3.5],[.55,3.1],[1,2.5]],neck:[[0,4.4],[1,3.8]]};
+const PRO={thigh:[[0,9.4],[.3,9.5],[.78,6.6],[1,5.4]],shin:[[0,5.4],[.26,6.9],[.62,4.4],[1,3.3]],uarm:[[0,7.2],[.22,6.3],[.55,6],[1,4.1]],farm:[[0,4.4],[.22,5.1],[1,3]],hand:[[0,3.4],[1,2.8]],foot:[[0,3.6],[.55,3.2],[1,2.6]],neck:[[0,5.4],[1,4.6]]};
 function handSvg(e,h,far){const fd=norm(sub(h,e));return shaded(at(h,fd,-1),at(h,fd,4.5),PRO.hand,far)}
 function frameOf(a,b){const v=sub(b,a),L=vlen(v)||.01,u=[v[0]/L,v[1]/L];return {L,u,n:[-u[1],u[0]]}}
 function sideSign(a,b,ref,fb,toward){const {n}=frameOf(a,b);let s=dot(sub(ref,a),n);if(Math.abs(s)<3)s=dot(fb,n);return (Math.sign(s)||1)*toward}
@@ -311,7 +315,7 @@ function spindle(a,b,t0,t1,w,off,peak=1){
   return A.concat(B.reverse().slice(1,-1));
 }
 // torso side (u lungo il busto, v verso il petto)
-const TSIDE=[[-6,-5],[-2,-9.8],[6,-8.6],[16,-6.4],[28,-7.8],[40,-9.4],[50,-8.4],[55.5,-4],[56,3],[51,7.4],[44,10.2],[36,9],[27,6.8],[16,7.2],[6,7.8],[-2,6],[-6,1]];
+const TSIDE=[[-6,-5.4],[-2,-10.4],[6,-8.8],[16,-6.2],[28,-8.2],[40,-10.6],[50,-9.4],[55.5,-4.6],[56,3.4],[51,8.4],[44,11.4],[36,9.6],[27,6.9],[16,6.8],[6,7.8],[-2,6.2],[-6,1]];
 const TU=(J,arr)=>arr.map(([u,v])=>at(J.hip,J.d,u,J.fr,v));
 function musSide(J,k){
   const {hip,sh,d,fr,bk}=J,T=a=>({pts:TU(J,a)});
@@ -362,7 +366,12 @@ function musSvg(list,op){
     if(m.dash){s+=`<path d="${d}" fill="${ACC}" fill-opacity="${f1(op*25)/100}" stroke="${ACC}" stroke-width="1.1" stroke-dasharray="2 1.6"/>`;continue}
     const cx=m.pts.reduce((a,p)=>a+p[0],0)/m.pts.length,cy=m.pts.reduce((a,p)=>a+p[1],0)/m.pts.length;
     const hp=m.pts.map(p=>[cx+(p[0]-cx)*.5+LIGHT[0]*1.1,cy+(p[1]-cy)*.5+LIGHT[1]*1.1]);
-    s+=`<g opacity="${f1(op*100)/100}"><path d="${d}" fill="#d8432a" stroke="#7a1d0f" stroke-width=".9"/><path d="${smoothClosed(hp)}" fill="#ff8466" opacity=".6"/></g>`;
+    // fibre muscolari lungo l'asse principale del muscolo
+    let sxx=0,syy=0,sxy=0;for(const p of m.pts){const dx=p[0]-cx,dy=p[1]-cy;sxx+=dx*dx;syy+=dy*dy;sxy+=dx*dy}
+    const th=.5*Math.atan2(2*sxy,sxx-syy),ax=[Math.cos(th),Math.sin(th)],nx=[-ax[1],ax[0]];
+    let L=0,Wd=0;for(const p of m.pts){const v=[p[0]-cx,p[1]-cy];L=Math.max(L,Math.abs(dot(v,ax)));Wd=Math.max(Wd,Math.abs(dot(v,nx)))}
+    let fib='';for(const o of [-.5,-.17,.17,.5]){const q0=at([cx,cy],nx,o*Wd),len=L*(.75-Math.abs(o)*.5);fib+=defPath([at(q0,ax,-len),at(q0,nx,o*.15*Wd),at(q0,ax,len)])}
+    s+=`<g opacity="${f1(op*100)/100}"><path d="${d}" fill="#d8432a" stroke="#7a1d0f" stroke-width=".9"/><path d="${smoothClosed(hp)}" fill="#ff8466" opacity=".55"/><g fill="none" stroke="#8e2412" stroke-width=".55" stroke-linecap="round" opacity=".55">${fib}</g></g>`;
   }
   return s;
 }
@@ -380,16 +389,31 @@ function headSide(J){
     +el(at(c,hf,-1,hd,1.4,LIGHT,1.2),4.5,5.2,SKINH,' opacity=".8"')
     +`<path d="M${PTS([at(c,hf,-8,hd,2),at(c,hf,-6,hd,8.6),at(c,hf,2,hd,9.9),at(c,hf,7.4,hd,5.2)]).join(' L')} Q${PTS([at(c,hf,1,hd,6.2)])} ${PTS([at(c,hf,-8,hd,2)])}Z" fill="${HAIR}" stroke="${OUT}" stroke-width="1" stroke-linejoin="round"/>`
     +`<path d="M${PTS([at(c,hf,7.9,hd,1)]).join('')} L${PTS([at(c,hf,10,hd,-2.4)])} L${PTS([at(c,hf,8,hd,-3)])}" fill="${SKIN}" stroke="${OUT}" stroke-width="1" stroke-linejoin="round"/>`
-    +`<path d="${smoothOpen([at(c,hf,-1,hd,1.5),at(c,hf,-2.6,hd,-.5),at(c,hf,-1.2,hd,-2.8)])}" fill="none" stroke="${DEF}" stroke-width="1"/>`;
+    +`<path d="${smoothClosed([at(c,hf,-.4,hd,2.2),at(c,hf,-3.4,hd,1.6),at(c,hf,-3.6,hd,-1.6),at(c,hf,-.8,hd,-2.6)])}" fill="${SKIN}" stroke="${OUT}" stroke-width="1"/>`
+    +`<path d="${smoothOpen([at(c,hf,-1.3,hd,1),at(c,hf,-2.5,hd,0),at(c,hf,-1.5,hd,-1.2)])}" fill="none" stroke="${DEF}" stroke-width=".8"/>`
+    +`<path d="${smoothOpen([at(c,hf,4.2,hd,2.6),at(c,hf,6.4,hd,3),at(c,hf,7.8,hd,2.2)])}" fill="none" stroke="${HAIR}" stroke-width="1.1" stroke-linecap="round"/>`
+    +`<circle cx="${f1(at(c,hf,6,hd,1.3)[0])}" cy="${f1(at(c,hf,6,hd,1.3)[1])}" r=".85" fill="${OUT}"/>`;
 }
 function torsoSide(J){
   const P=TU(J,TSIDE),H=TU(J,TSIDE.map(([u,v])=>[u*.86+4,v*.5])).map(p=>at(p,LIGHT,1.6));
+  const Sd=TU(J,TSIDE.map(([u,v])=>[u*.9+3,v*.62])).map(p=>at(p,LIGHT,-2.6));
   return `<path d="${smoothClosed(P)}" fill="${SKIN}" stroke="${OUT}" stroke-width="1.2" stroke-linejoin="round"/>`
+    +`<path d="${smoothClosed(Sd)}" fill="${SKINS}" opacity=".45"/>`
     +`<path d="${smoothClosed(H)}" fill="${SKINH}" opacity=".75"/>`
     +defLine(TU(J,[[36.5,8.6],[38.5,5],[45,2.2]]))+defLine(TU(J,[[31,6],[22,5.4],[12,6.2]]),.8)+defLine(TU(J,[[30,-5],[38,-6.4],[46,-5.6]]),.7)+defLine(TU(J,[[-3,-4.5],[2,-3.6],[7,-6]]),.8);
 }
+function shortsSide(J,hip,k,far){
+  const T=frameOf(hip,k);let s=shaded(hip,at(hip,T.u,T.L*.42),[[0,10],[1,9.8]],far,far?COL.shortsFar:COL.shorts);
+  s+=`<path d="${smoothOpen([at(hip,T.u,T.L*.42,T.n,9.6),at(hip,T.u,T.L*.42,T.n,-9.6)])}" fill="none" stroke="${OUT}" stroke-width="1"/>`;
+  return s;
+}
+function pelvisShorts(J){
+  const P=TU(J,[[9,-8.9],[2,-10.6],[-3,-10.8],[-7,-6],[-7.4,1],[-3,6.8],[3,7.9],[9,8]]);
+  return `<path d="${smoothClosed(P)}" fill="${COL.shorts[0]}" stroke="${OUT}" stroke-width="1.2" stroke-linejoin="round"/>`
+   +`<path d="${smoothClosed(TU(J,[[7,-6],[1,-7.5],[-4,-4],[-4,2],[1,4.5],[7,4]]).map(p=>at(p,LIGHT,1.4)))}" fill="${COL.shorts[1]}" opacity=".7"/>`;
+}
 function legSide(J,hip,k,a,t,far){
-  const fd=norm(sub(t,a));let s=shaded(at(a,fd,-3.5),t,PRO.foot,far)+shaded(k,a,PRO.shin,far)+shaded(hip,k,PRO.thigh,far);
+  const fd=norm(sub(t,a));let s=shaded(at(a,fd,-3.5),t,PRO.foot,far)+shaded(k,a,PRO.shin,far)+shaded(hip,k,PRO.thigh,far)+shortsSide(J,hip,k,far);
   if(!far){const sq=sideSign(hip,k,a,J.bk,-1),T=frameOf(hip,k),sc=sideSign(k,a,t,J.bk,-1),S=frameOf(k,a);
     s+=defLine([.18,.5,.86].map((tt,i)=>at(hip,T.u,T.L*tt,T.n,sq*[2.6,2.4,1.2][i])))+defLine([.06,.3,.55].map((tt,i)=>at(k,S.u,S.L*tt,S.n,sc*[1,3,2.4][i])),.8)}
   return s;
@@ -404,7 +428,7 @@ function drawSide(J,ex,op){
   let s=q.back||'';
   s+=legSide(J,J.hip,J.fk,J.fan,J.ft,true)+armSide(J,J.sh,J.fe,J.fh,true);
   s+=q.mid||'';
-  s+=shaded(at(J.sh,J.hdir,-3),at(J.sh,J.hdir,LEN.N+2),PRO.neck)+torsoSide(J)+headSide(J);
+  s+=shaded(at(J.sh,J.hdir,-3),at(J.sh,J.hdir,LEN.N+2),PRO.neck)+torsoSide(J)+pelvisShorts(J)+headSide(J);
   s+=mus(J,ex,op,'t');
   s+=legSide(J,J.hip,J.nk,J.na,J.nt,false);
   s+=mus(J,ex,op,'l');
@@ -420,17 +444,21 @@ function drawFront(J,ex,op){
   for(const [h,L,sg] of [[J.hipL,J.LL,-1],[J.hipR,J.RL,1]]){
     const seated=vlen(sub(L.k,h))<20;
     s+=shaded(L.a,[L.a[0]+sg*3,L.a[1]+5],PRO.foot)+shaded(L.k,L.a,PRO.shin)+(seated?shaded(h,L.k,[[0,9],[1,8.6]]):shaded(h,L.k,PRO.thigh));
-    if(seated){s+=`<ellipse cx="${f1(L.k[0])}" cy="${f1(L.k[1]+1)}" rx="6" ry="5.2" fill="${SKINH}" opacity=".55"/>`+defLine([at(L.k,[-4.5,2.5]),at(L.k,[0,5.5]),at(L.k,[4.5,2.5])],.8);continue}
+    if(seated){s+=shaded(h,at(h,norm(sub(L.k,h)),vlen(sub(L.k,h))*.45),[[0,10],[1,9.8]],false,COL.shorts);s+=`<ellipse cx="${f1(L.k[0])}" cy="${f1(L.k[1]+1)}" rx="6" ry="5.2" fill="${SKINH}" opacity=".55"/>`+defLine([at(L.k,[-4.5,2.5]),at(L.k,[0,5.5]),at(L.k,[4.5,2.5])],.8);continue}
     const T=frameOf(h,L.k),S=frameOf(L.k,L.a);
+    s+=shaded(h,at(h,T.u,T.L*.4),[[0,10.2],[1,10]],false,COL.shorts)+`<path d="${smoothOpen([at(h,T.u,T.L*.4,T.n,9.8),at(h,T.u,T.L*.4,T.n,-9.8)])}" fill="none" stroke="${OUT}" stroke-width="1"/>`;
     s+=defLine([at(h,T.u,T.L*.25,T.n,-sg*1.5),at(h,T.u,T.L*.7,T.n,-sg*2.6),at(h,T.u,T.L*.95,T.n,-sg*.5)],.8)+defLine([at(L.k,S.n,-3,S.u,-1),at(L.k,S.u,1.6),at(L.k,S.n,3,S.u,-1)],.7);
   }
-  const R=[[5,-7],[13,-3.2],[19,-.6],[22,5],[19.5,12],[15.5,.4*H],[12.5,.68*H],[13.5,.9*H],[11.5,H+4],[3,H+8]];
+  const R=[[5.5,-7.4],[14,-3.6],[20.5,-.4],[24,5.6],[21,12.6],[16,.4*H],[12,.68*H],[13.5,.9*H],[11.5,H+4],[3,H+8]];
   const pts=R.concat(R.slice().reverse().map(([x,yy])=>[-x,yy])).map(([x,yy])=>M(x,yy));
   const hl=R.concat(R.slice().reverse().map(([x,yy])=>[-x,yy])).map(([x,yy])=>M(x*.55-2,yy*.88+3));
   s+=shaded([c,y+2],[c,y-LEN.N-3],PRO.neck);
   s+=`<path d="${smoothClosed(pts)}" fill="${SKIN}" stroke="${OUT}" stroke-width="1.2" stroke-linejoin="round"/><path d="${smoothClosed(hl)}" fill="${SKINH}" opacity=".7"/>`;
   for(const sg of [1,-1])s+=defLine([M(sg*1.5,18),M(sg*10,19),M(sg*17,9)])+defLine([M(sg*12.5,.45*H),M(sg*10,.7*H),M(sg*7,.93*H)],.8)+defLine([M(sg*1.5,.48*H),M(sg*6,.47*H)],.7)+defLine([M(sg*1.5,.62*H),M(sg*6,.61*H)],.7)+defLine([M(sg*1.5,.76*H),M(sg*5.6,.75*H)],.7);
   s+=defLine([M(0,20),M(0,.9*H)],.8);
+  // pantaloncini
+  s+=`<path d="${smoothClosed([M(-13.6,.84*H),M(13.6,.84*H),M(14.6,H+3),M(11,H+9),M(3,H+10),M(0,H+7),M(-3,H+10),M(-11,H+9),M(-14.6,H+3)])}" fill="${COL.shorts[0]}" stroke="${OUT}" stroke-width="1.2" stroke-linejoin="round"/>`
+    +`<path d="${smoothClosed([M(-9,.88*H),M(4,.88*H),M(5,H+2),M(-8,H+3)])}" fill="${COL.shorts[1]}" opacity=".6"/>`;
   const hy=J.head[1];
   s+=ci([c-8.2,hy+1],2.2,SKIN,OUT,1)+ci([c+8.2,hy+1],2.2,SKIN,OUT,1)
     +`<ellipse cx="${c}" cy="${f1(hy+.6)}" rx="8" ry="9.6" fill="${SKIN}" stroke="${OUT}" stroke-width="1.2"/>`
@@ -828,7 +856,7 @@ $('bkImp').onclick=()=>{const m=$('bkMsg');try{const o=JSON.parse($('bkTxt').val
 // offline
 function setOffl(){const o=$('offl');if(!navigator.onLine)o.innerHTML='<i></i>Offline: tutto funziona lo stesso';else o.innerHTML=''}
 addEventListener('online',setOffl);addEventListener('offline',setOffl);setOffl();
-const APP_VERSION=10;
+const APP_VERSION=11;
 $('appVer').textContent='Versione '+APP_VERSION;
 if('serviceWorker' in navigator&&!inFrame&&(location.protocol==='https:'||location.hostname==='localhost')){
   navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{

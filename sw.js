@@ -1,5 +1,5 @@
 // Service worker: salva l'app sul telefono per usarla offline
-const VERSION = 10;
+const VERSION = 11;
 const CACHE = 'palestra-v' + VERSION;
 const FILES = ['./', './index.html', './modello3d.js', './esercizi3d.js', './vendor/three-lite.js', './models/uomo.glb', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
