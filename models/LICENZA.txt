@@ -1,0 +1,4 @@
+uomo.glb
+Modello "Male Base Mesh" (con scheletro), licenza CC0 (pubblico dominio).
+Autore originale: orange-juice-games (https://orange-juice-games.itch.io/male-base-mesh)
+Versione usata: https://github.com/BoQsc/Godot-Male-Base-Mesh
