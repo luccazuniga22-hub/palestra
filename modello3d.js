@@ -53,7 +53,7 @@ export function create(el, opts = {}) {
   const mk = (g, m) => { const o = new T.Mesh(g, typeof m === 'string' ? MAT[m] : m); o.castShadow = true; o.receiveShadow = true; return o; };
 
   // ---- modello umano ----
-  const SKIN = new T.Color('#d9dde3'), SHORTS = new T.Color('#3a4250'), RED = new T.Color('#e0412a');
+  const SKIN = new T.Color('#e2d4ca'), SHORTS = new T.Color('#3a4250'), RED = new T.Color('#e0412a');
   let model = null, mesh = null, colAttr = null, region = null, B = {}, restQ = {}, restLen = {}, soleLocal = {}, K = 80, lastKey = '';
   const qa = new T.Quaternion(), qb = new T.Quaternion(), va = new T.Vector3(), vb = new T.Vector3(), vc = new T.Vector3();
   const LEN = { TH: 32.6, SH: 41.4 };
@@ -80,9 +80,10 @@ export function create(el, opts = {}) {
     geo.computeVertexNormals(); sculpt(geo); geo.computeVertexNormals();
     mesh.geometry = geo; mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
     colAttr = new T.BufferAttribute(new Float32Array(geo.attributes.position.count * 3), 3); geo.setAttribute('color', colAttr);
-    mesh.material = new T.MeshStandardMaterial({ vertexColors: true, roughness: .55, metalness: 0 });
+    mesh.material = new T.MeshPhysicalMaterial({ vertexColors: true, roughness: .5, metalness: 0, sheen: .35, sheenRoughness: .55, sheenColor: new T.Color('#ffe2d2'), clearcoat: .06, clearcoatRoughness: .6 });
     region = classify(geo, mesh.skeleton);
     soften(geo);
+    shade = cavity(geo);
     lastKey = ''; loading.remove();
     if (cur) setExercise(cur);
   }, undefined, () => { loading.textContent = 'Modello 3D non disponibile'; });
@@ -132,18 +133,22 @@ export function create(el, opts = {}) {
     const tor = (y0, y1, th, hw, amp, sym = true, shape = 0) => { TOR.push({ y0, y1, th, hw, amp, shape }); if (sym && th) TOR.push({ y0, y1, th: -th, hw, amp, shape }); };
     const HEAD = [];
     const hd = (y0, y1, th, hw, amp, sym = true, shape = 0) => { HEAD.push({ y0, y1, th, hw, amp, shape }); if (sym && th) HEAD.push({ y0, y1, th: -th, hw, amp, shape }); };
-    tor(.36, .57, 30, 30, .02, true, 1);         // pettorali (piatti e larghi, bordo basso netto)
+    tor(.36, .57, 30, 30, .024, true, 1);        // pettorali (piatti e larghi, bordo basso netto)
+    tor(.45, .6, 54, 8, -.006);                  // solco tra pettorale e deltoide
+    tor(-.02, .07, 28, 7, -.006);                // linee a V del basso ventre
+    tor(.04, .24, 92, 34, -.009);                // vita più stretta (forma a V)
     tor(.36, .58, 0, 5, -.007, false);           // solco dello sterno
-    for (const [y0, y1] of [[.025, .1], [.1, .18], [.18, .26], [.26, .34]]) tor(y0, y1, 11, 9, .009); // addominali (8 blocchi)
+    for (const [y0, y1] of [[.025, .1], [.1, .18], [.18, .26], [.26, .34]]) tor(y0, y1, 11, 9, .01); // addominali (8 blocchi)
+    for (const yy of [.1, .18, .26]) tor(yy - .008, yy + .008, 11, 12, -.006); // solchi orizzontali degli addominali
     tor(0, .35, 0, 3.5, -.008, false);           // linea alba
     tor(.04, .27, 42, 16, .011);                 // obliqui
     for (const yy of [.31, .35, .39]) tor(yy - .022, yy + .022, 62, 9, .007); // dentato anteriore
-    tor(.2, .5, 112, 26, .022);                  // dorsali (forma a V)
-    tor(.57, .68, 148, 26, .018);                // trapezi alti
+    tor(.2, .5, 112, 26, .03);                   // dorsali (forma a V)
+    tor(.57, .68, 148, 26, .022);                // trapezi alti
     tor(.42, .58, 160, 15, .013);                // trapezio medio e romboidi
     tor(.03, .6, 180, 5, -.008, false);          // solco della colonna
     tor(.02, .3, 167, 9, .013);                  // lombari
-    tor(-.17, .04, 152, 26, .026);               // glutei
+    tor(-.17, .04, 152, 26, .028);               // glutei
     tor(-.16, -.02, 180, 4, -.01, false);        // solco tra i glutei
     // viso
     hd(.775, .855, 0, 8, .017, false, 2);        // naso (punta in basso)
@@ -162,10 +167,12 @@ export function create(el, opts = {}) {
       const S = sg < 0 ? 'L' : 'R', sh = rp('upper_arm' + S), el = rp('forearm' + S), wr = rp('hand' + S), hp = rp('thigh' + S), kn = rp('shin' + S), an = rp('foot' + S), top = sh.clone().add(new T.Vector3(0, .05, sg * .01));
       const out = [0, 0, sg], fw = [1, 0, 0], bw = [-1, 0, 0], inn = [0, 0, -sg];
       const lim = (a, b, t0, t1, side, amp, maxR = .09, pk = 1) => LIM.push({ a, b, t0, t1, side: new T.Vector3(...side).normalize(), amp, maxR, pk });
-      lim(top, el, 0, .42, out, .02, .1);                       // deltoide laterale
-      lim(top, el, 0, .4, [1, 0, sg * .4], .016, .1);           // deltoide anteriore
-      lim(top, el, 0, .4, [-1, 0, sg * .4], .015, .1);          // deltoide posteriore
-      lim(sh, el, .28, .92, fw, .019, .085, .9);                // bicipite
+      lim(top, el, 0, .42, out, .028, .1);                      // deltoide laterale
+      lim(top, el, 0, .4, [1, 0, sg * .4], .02, .1);            // deltoide anteriore
+      lim(top, el, .05, .4, [.7, 0, sg * .7], -.004, .1);       // solco deltoide anteriore-laterale
+      lim(top, el, .05, .4, [-.7, 0, sg * .7], -.004, .1);      // solco deltoide laterale-posteriore
+      lim(top, el, 0, .4, [-1, 0, sg * .4], .02, .1);           // deltoide posteriore
+      lim(sh, el, .28, .92, fw, .021, .085, .9);                // bicipite
       lim(sh, el, .45, .95, [.3, 0, sg], -.004, .085);          // solco bicipite-tricipite
       lim(sh, el, .2, .9, bw, .016, .085);                      // tricipite capo lungo
       lim(sh, el, .25, .75, [-.6, 0, sg], .01, .085);           // tricipite capo laterale
@@ -176,9 +183,10 @@ export function create(el, opts = {}) {
       lim(hp, kn, .62, .95, [.55, 0, -sg], .013, .12, 1.8);     // vasto mediale (goccia)
       lim(hp, kn, .3, .85, [.8, 0, sg * .55], -.005, .12);      // solco tra i quadricipiti
       lim(hp, kn, .1, .88, bw, .016, .12);                      // femorali
+      lim(hp, kn, .3, .9, [0, 0, sg], -.004, .12);              // solco laterale della coscia
       lim(hp, kn, .05, .7, inn, .011, .12);                     // adduttori
-      lim(kn, an, .07, .46, [-1, 0, -sg * .45], .024, .09, .8); // gastrocnemio mediale
-      lim(kn, an, .07, .4, [-1, 0, sg * .45], .017, .09, .8);   // gastrocnemio laterale
+      lim(kn, an, .07, .46, [-1, 0, -sg * .45], .03, .09, .8);  // gastrocnemio mediale
+      lim(kn, an, .07, .4, [-1, 0, sg * .45], .022, .09, .8);   // gastrocnemio laterale
       lim(kn, an, .1, .38, bw, -.004, .09);                     // solco tra i due capi
       lim(kn, an, .4, .72, bw, .008, .09);                      // soleo
       lim(kn, an, .05, .5, [.4, 0, sg], .008, .09);             // tibiale
@@ -191,6 +199,7 @@ export function create(el, opts = {}) {
       if (/spine00[45]/.test(bn)) {
         const th = Math.atan2(p.z, p.x - .005) * 180 / Math.PI;
         for (const m of HEAD) { if (p.y < m.y0 - .01 || p.y > m.y1 + .01) continue; disp += m.amp * prof(m, p.y) * thW(m, th); }
+        if (/spine004/.test(bn) && p.y < .73) disp += .01;    // collo più robusto
         if (disp) P.setXYZ(i, p.x + nn.x * disp, p.y + nn.y * disp, p.z + nn.z * disp);
         continue;
       }
@@ -208,6 +217,8 @@ export function create(el, opts = {}) {
         const sc = (t - m.t0) / (m.t1 - m.t0), along = Math.pow(Math.sin(Math.PI * Math.pow(sc, m.pk)), .7), side = Math.max(0, d.dot(m.side));
         disp += m.amp * along * Math.pow(side, 1.6);
       }
+      // massa atletica generale
+      if (/upper_arm/.test(bn)) disp += .008; else if (/forearm/.test(bn)) disp += .006; else if (/thigh/.test(bn)) disp += .011; else if (/shin/.test(bn)) disp += .007;
       if (disp) P.setXYZ(i, p.x + nn.x * disp, p.y + nn.y * disp, p.z + nn.z * disp);
     }
     P.needsUpdate = true;
@@ -246,6 +257,24 @@ export function create(el, opts = {}) {
     return out;
   }
 
+
+  // ---- ombre nei solchi (curvatura): scurisce gli incavi tra i muscoli, schiarisce le parti sporgenti ----
+  let shade = null;
+  function cavity(geo) {
+    const P = geo.attributes.position.array, N = geo.attributes.normal.array, I = geo.index.array, n = P.length / 3;
+    const nb = Array.from({ length: n }, () => []);
+    for (let i = 0; i < I.length; i += 3) { const a = I[i], b = I[i + 1], c = I[i + 2]; nb[a].push(b, c); nb[b].push(a, c); nb[c].push(a, b); }
+    const relax = (src, it) => { let q = Float32Array.from(src); for (let k = 0; k < it; k++) { const o = new Float32Array(q.length); for (let v = 0; v < n; v++) { const L = nb[v]; if (!L.length) { o[v * 3] = q[v * 3]; o[v * 3 + 1] = q[v * 3 + 1]; o[v * 3 + 2] = q[v * 3 + 2]; continue; } let x = 0, y = 0, z = 0; for (const u of L) { x += q[u * 3]; y += q[u * 3 + 1]; z += q[u * 3 + 2]; } o[v * 3] = x / L.length; o[v * 3 + 1] = y / L.length; o[v * 3 + 2] = z / L.length; } q = o; } return q; };
+    const blur1 = (arr, it) => { for (let k = 0; k < it; k++) { const q = arr.slice(); for (let v = 0; v < n; v++) { let t = q[v] * 2, c = 2; for (const u of nb[v]) { t += q[u]; c++; } arr[v] = t / c; } } return arr; };
+    const curv = Q => { const c = new Float32Array(n); for (let v = 0; v < n; v++) c[v] = (Q[v * 3] - P[v * 3]) * N[v * 3] + (Q[v * 3 + 1] - P[v * 3 + 1]) * N[v * 3 + 1] + (Q[v * 3 + 2] - P[v * 3 + 2]) * N[v * 3 + 2]; return c; };
+    const big = curv(relax(P, 14)), small = curv(relax(P, 3));
+    const hp = arr => { const b = blur1(arr.slice(), 18); for (let v = 0; v < n; v++) arr[v] -= b[v]; return arr; };
+    hp(big); hp(small);
+    const out = new Float32Array(n);
+    for (let v = 0; v < n; v++) { const c = big[v] / .005 + small[v] / .0012 * .6; out[v] = 1 - .32 * Math.min(1, Math.max(0, c)) + .07 * Math.min(1, Math.max(0, -c)); }
+    return blur1(out, 1);
+  }
+
   let soft = null, shortsSoft = null;
   function soften(geo) {
     const I = geo.index.array, n = region.length, nb = Array.from({ length: n }, () => []);
@@ -263,6 +292,7 @@ export function create(el, opts = {}) {
       c.copy(SKIN).lerp(SHORTS, shortsSoft[i]);
       let m = 0; for (const arr of act) if (arr[i] > m) m = arr[i];
       if (m > 0) c.lerp(RED, Math.min(1, m * 1.6) * str);
+      if (shade) c.multiplyScalar(shade[i]);
       a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b;
     }
     colAttr.needsUpdate = true;

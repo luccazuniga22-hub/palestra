@@ -828,7 +828,7 @@ $('bkImp').onclick=()=>{const m=$('bkMsg');try{const o=JSON.parse($('bkTxt').val
 // offline
 function setOffl(){const o=$('offl');if(!navigator.onLine)o.innerHTML='<i></i>Offline: tutto funziona lo stesso';else o.innerHTML=''}
 addEventListener('online',setOffl);addEventListener('offline',setOffl);setOffl();
-const APP_VERSION=9;
+const APP_VERSION=10;
 $('appVer').textContent='Versione '+APP_VERSION;
 if('serviceWorker' in navigator&&!inFrame&&(location.protocol==='https:'||location.hostname==='localhost')){
   navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{
