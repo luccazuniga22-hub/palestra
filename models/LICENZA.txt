@@ -1,4 +1,3 @@
-uomo.glb
-Modello "Male Base Mesh" (con scheletro), licenza CC0 (pubblico dominio).
-Autore originale: orange-juice-games (https://orange-juice-games.itch.io/male-base-mesh)
-Versione usata: https://github.com/BoQsc/Godot-Male-Base-Mesh
+atleta.glb
+Corpo umano generato con MakeHuman / MPFB2 (https://github.com/makehumancommunity/mpfb2).
+Mesh, scheletro e occhi di MakeHuman sono rilasciati con licenza CC0 (pubblico dominio).
